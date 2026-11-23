@@ -329,6 +329,8 @@ local function ShowToast(title, text, icon, b1, b2)
 	end)
 end
 
+ns.ShowToast = ShowToast
+
 local function OpenRequests()
 	if ns.OpenGuild then ns.OpenGuild("req") end
 end

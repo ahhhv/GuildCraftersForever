@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0-beta4
+
+### New: "there's a new version" notice
+- When someone in your guild runs a newer release of the addon, you get a notice in chat and on screen (once per session) telling you to update. Betas never trigger it.
+- `/gcraft versions` lists which version each member has.
+- Works from this version on: older versions don't share theirs.
+
 ## 0.4.0-beta3
 
 ### New: your own shortcut

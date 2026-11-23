@@ -181,5 +181,12 @@ if locale == "esES" or locale == "esMX" then
 	L["Requests and board posts crafted"] = "Solicitudes y pedidos del tablón hechos"
 	L["Nobody has finished a request yet."] = "Nadie ha completado aún ningún pedido."
 	L["This month: %d  ·  All time: %d"] = "Este mes: %d  ·  En total: %d"
+	L["There's a new version of GuildCrafters Forever (%s): you have %s. Update it from CurseForge."] = "Hay una versión nueva de GuildCrafters Forever (%s) y tú tienes la %s. Actualízala desde CurseForge."
+	L["New version"] = "Versión nueva"
+	L["Your version: %s"] = "Tu versión: %s"
+	L["development"] = "de desarrollo"
+	L["newer"] = "más nueva"
+	L["Older than 0.4.0-beta4 (no version shared): %s"] = "Anterior a la 0.4.0-beta4 (no comparten versión): %s"
+	L["which version each member has"] = "qué versión tiene cada miembro"
 	L["The old \"GuildCrafters\" folder is still installed: delete Interface\\AddOns\\GuildCrafters and restart the game. GuildCrafters Forever stays off until then."] = "Sigue instalada la carpeta antigua «GuildCrafters»: borra Interface\\AddOns\\GuildCrafters y reinicia el juego. GuildCrafters Forever no se activará hasta entonces."
 end

@@ -430,6 +430,7 @@ function ns.Rescan(what, change)
 		rec.ac, rec.mn = nil, nil
 	end
 	rec.nr = (not ns.Opt("acceptRequests")) or nil
+	rec.ver = ns.MyVersion and ns.MyVersion() or nil
 	if what == "all" or what == "prof" then
 		ns.ScanProfessions(rec)
 		ns.ScanKnownRecipes(rec)

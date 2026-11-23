@@ -47,6 +47,7 @@ Download it from CurseForge (search for "GuildCrafters Forever", game version Fo
 | `/gcraft main` | Make this character your main |
 | `/gcraft options` | Open the options |
 | `/gcraft shortcut` | Record your shortcut to request items |
+| `/gcraft versions` | Which version each member has |
 | `/gcraft send` | Send your data again |
 | `/gcraft prune` | Forget members who left the guild |
 | `/gcraft status` | Sync diagnostics (for bug reports) |
