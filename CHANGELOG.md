@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0
+## 0.4.0-beta1
 
 ### New: "Who crafts it?" on item tooltips
 - Item tooltips (bags, chat links, auction house…) show who in your guild can craft the item, online players first, and whether you can craft it too.

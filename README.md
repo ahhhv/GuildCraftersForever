@@ -43,10 +43,10 @@ Download it from CurseForge (search for "GuildCrafters Forever", game version Fo
 | `/gcraft status` | Sync diagnostics (for bug reports) |
 
 ## Releasing
-Pushing a tag publishes to CurseForge through GitHub Actions ([BigWigs packager](https://github.com/BigWigsMods/packager)):
+Publishing is automatic through GitHub Actions ([BigWigs packager](https://github.com/BigWigsMods/packager)): add a new version heading at the top of `CHANGELOG.md` and push to `main`. The workflow tags the commit and uploads it to CurseForge and GitHub Releases.
 
-- `v0.4.0` → Release, `v0.4.0-beta1` → Beta, `v0.4.0-alpha1` → Alpha.
-- The tag can be made from GitHub: Releases → Draft a new release → type the new tag → Publish.
+- `## 0.4.0` → Release, `## 0.4.0-beta1` → Beta, `## 0.4.0-alpha1` → Alpha.
+- Pushing a `v*` tag by hand also publishes.
 - The game version (WoW: Forever 1.60.x) comes from the `.toc`'s `## Interface: 16xxx`.
 - The changelog is `CHANGELOG.md`.
 - Needs the repository secret `CF_API_KEY` (a CurseForge API token).
