@@ -1,0 +1,24 @@
+## Interface: 16001
+## Title: GuildCrafters Forever
+## Title-esES: GuildCrafters Forever: profesiones y talentos
+## Title-esMX: GuildCrafters Forever: profesiones y talentos
+## Notes: Shares your professions, recipes and talents with your guild, and adds two tabs to the guild window (J): professions with a guild-wide recipe search, and every member's specialization and talents. /gcraft
+## Notes-esES: Comparte tus profesiones, recetas y talentos con tu guild, y añade dos pestañas al panel de la guild (J): profesiones con buscador de recetas de toda la guild, y la especialización y los talentos de cada miembro. /gcraft
+## Notes-esMX: Comparte tus profesiones, recetas y talentos con tu guild, y añade dos pestañas al panel de la guild (J): profesiones con buscador de recetas de toda la guild, y la especialización y los talentos de cada miembro. /gcraft
+## Author: jamiforever
+## Version: @project-version@
+## SavedVariables: GuildCraftersForeverDB
+## IconTexture: Interface\Icons\Trade_BlackSmithing
+## Category: Guild
+## X-License: GPL-3.0-or-later
+## X-Curse-Project-ID: 1823655
+## X-Website: https://github.com/ahhhv/GuildCraftersForever
+## X-Credits: Recipe list derived from SkillUpForever's data (GPL-3.0)
+
+Locale.lua
+RecipeList.lua
+Data.lua
+Comm.lua
+Requests.lua
+UI.lua
+ReqUI.lua

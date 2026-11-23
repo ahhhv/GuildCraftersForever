@@ -1,0 +1,29 @@
+# Packages the addon and uploads it to CurseForge when a version tag is pushed.
+#   v0.4.0         -> Release
+#   v0.4.0-beta1   -> Beta
+#   v0.4.0-alpha1  -> Alpha
+# The game version (WoW: Forever 1.60.x) comes from the .toc's "## Interface: 16xxx".
+# Needs the repository secret CF_API_KEY (a CurseForge API token).
+name: Package and release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      CF_API_KEY: ${{ secrets.CF_API_KEY }}
+      GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Package and upload
+        uses: BigWigsMods/packager@v2
