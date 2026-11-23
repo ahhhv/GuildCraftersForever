@@ -110,7 +110,7 @@ local function Num(v) return type(v) == "number" and v or nil end
 -- A received record cleaned to what we use; nil if it isn't one
 local function Clean(rec)
 	if type(rec) ~= "table" or Num(rec.t) == nil or Num(rec.v) ~= ns.PROTOCOL then return nil end
-	local out = { v = rec.v, t = rec.t, c = Str(rec.c, 20), l = Num(rec.l), g = Str(rec.g, 60), ac = Str(rec.ac, 32), mn = Str(rec.mn, 60), p = {} }
+	local out = { v = rec.v, t = rec.t, c = Str(rec.c, 20), l = Num(rec.l), g = Str(rec.g, 60), ac = Str(rec.ac, 32), mn = Str(rec.mn, 60), nr = rec.nr == true or nil, p = {} }
 	if type(rec.p) == "table" then
 		for skill, p in pairs(rec.p) do
 			if Num(skill) and type(p) == "table" then
@@ -227,6 +227,12 @@ local function OnMessage(text, channel, rawSender)
 		ns.stats.got = ns.stats.got + 1
 		ns.Log(("<- O %s (%s)"):format(rawSender, channel or "?"))
 		if channel == "GUILD" and ns.Req then ns.Req.Receive(select(2, strsplit(SEP, text, 8))) end
+		return
+	end
+	if text:sub(1, 2) == "B" .. SEP then
+		ns.stats.got = ns.stats.got + 1
+		ns.Log(("<- B %s (%s)"):format(rawSender, channel or "?"))
+		if channel == "GUILD" and ns.Req then ns.Req.ReceiveBoard(select(2, strsplit(SEP, text, 9))) end
 		return
 	end
 	local kind, a, b, c, d = strsplit(SEP, text, 5)

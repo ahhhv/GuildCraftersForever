@@ -18,6 +18,19 @@
 -- A request: { id, from, to (member keys), recipe (recipe ID), t (asked, server
 --   time), st (state), u (last change, server time), letter (requester only:
 --   the letter was mailed), seen (crafter only: the notice was shown) }
+--
+-- The guild board: a post asks the whole guild instead of one crafter.
+--   open -> taken (by whoever takes it first) -> done
+--        -> cancelled (the poster takes it back)   taken -> open (the taker lets it go)
+--        -> expired (7 days with nobody taking it)
+-- A post is a request with board = true, to = the taker (nil while open), and
+-- recipe = 0 with a text for a free-text post ("looking for 20 Linen Cloth").
+-- It travels as B~id~from~to~recipe~t~st~u~text (older versions ignore it).
+-- Only the members who know the recipe (and take requests) get a notice.
+--
+-- Members can turn requests off (option acceptRequests, shared as rec.nr):
+-- nobody can ask them, and a request that still reaches them (from an older
+-- version) is declined at once.
 --------------------------------------------------------------------------------
 
 local ADDON, ns = ...
@@ -32,6 +45,9 @@ local KEEP = 7 * 86400         -- a finished one stays listed this long
 local RELAY_WAIT = { 2, 9 }    -- seconds a member who isn't a side waits before relaying (the sides go first)
 
 local STATES = { open = true, accepted = true, declined = true, done = true, cancelled = true }
+local BSTATES = { open = true, taken = true, done = true, cancelled = true }
+local RANK = { open = 1, taken = 2, accepted = 2, done = 3, cancelled = 3, declined = 3, expired = 3 }
+local TEXT_MAX = 120
 local FINAL = { declined = true, done = true, cancelled = true, expired = true }
 R.FINAL = FINAL
 
@@ -69,11 +85,20 @@ function R.PendingForMe()
 	return n
 end
 
--- Accepted requests I'm to craft
+-- Accepted requests (and board posts taken) I'm to craft
 function R.ToCraft()
 	local me, n = ns.Me(), 0
 	for _, r in pairs(Store() or {}) do
-		if r.to == me and r.st == "accepted" then n = n + 1 end
+		if r.to == me and (r.st == "accepted" or r.st == "taken") then n = n + 1 end
+	end
+	return n
+end
+
+-- Open board posts by others
+function R.BoardOpen()
+	local me, n = ns.Me(), 0
+	for _, r in pairs(Store() or {}) do
+		if r.board and r.st == "open" and r.from ~= me then n = n + 1 end
 	end
 	return n
 end
@@ -125,8 +150,19 @@ end
 --------------------------------------------------------------------------------
 
 local function Encode(r)
+	if r.board then
+		return table.concat({ "B", r.id, r.from, r.to or "-", r.recipe or 0, r.t, r.st, r.u, r.text or "" }, SEP)
+	end
 	return table.concat({ "O", r.id, r.from, r.to, r.recipe, r.t, r.st, r.u }, SEP)
 end
+
+-- A post's free text, safe to send and to show (no separators, no escape codes)
+local function CleanText(s)
+	if type(s) ~= "string" then return "" end
+	s = s:gsub("[~|\r\n\t]", " "):gsub("%s+", " "):gsub("^ ", ""):gsub(" $", "")
+	return s:sub(1, TEXT_MAX)
+end
+R.CleanText = CleanText
 
 local function Broadcast(r)
 	lastHeard[r.id] = GetTime()
@@ -152,12 +188,121 @@ function R.Receive(id, from, to, recipe, t, st, u)
 	r.from, r.to, r.recipe, r.t, r.st, r.u = from, to, recipe, t, st, u
 	s[id] = r
 	local me = ns.Me()
-	if r.to == me and st == "open" and not r.seen and GetServerTime() - t < EXPIRE then
+	if r.to == me and st == "open" and not ns.Opt("acceptRequests") then
+		-- I don't take requests (one sent by an older version, or before I turned them off... it waits for me)
+		if not cur or before ~= "open" then
+			r.seen = true
+			C_Timer.After(1 + math.random(), function() R.Set(id, "declined") end)
+		end
+	elseif r.to == me and st == "open" and not r.seen and GetServerTime() - t < EXPIRE then
 		r.seen = true
 		if ns.NotifyRequest then ns.NotifyRequest(r) end
 	elseif r.from == me and before ~= st and (st == "accepted" or st == "declined" or st == "done") then
 		if ns.NotifyAnswer then ns.NotifyAnswer(r) end
 	end
+	if ns.RefreshUI then ns.RefreshUI() end
+end
+
+-- Do I know this recipe?
+local function IKnow(recipe)
+	if not recipe or recipe == 0 then return false end
+	local me = ns.Me()
+	for _, key in ipairs(ns.CraftIndex()[recipe] or {}) do
+		if key == me then return true end
+	end
+	return false
+end
+R.IKnow = IKnow
+
+-- A board post heard from the guild
+function R.ReceiveBoard(id, from, to, recipe, t, st, u, text)
+	id, from = Name(id), Name(from)
+	to = to ~= "-" and Name(to) or nil
+	recipe, t, u = tonumber(recipe), tonumber(t), tonumber(u)
+	text = CleanText(text)
+	if not (id and from and recipe and recipe >= 0 and t and u and BSTATES[st]) then return end
+	if recipe == 0 and text == "" then return end
+	if st == "taken" and not to then return end
+	local s = Store()
+	if not s then return end
+	lastHeard[id] = GetTime()
+	local g = ns.Guild()
+	if g.forgotten and g.forgotten[id] then return end
+	local cur = s[id]
+	if cur then
+		local cu = cur.u or 0
+		if u < cu then return end
+		if u == cu then
+			-- two changes in the same second (two members took it at once): every client picks the same one
+			local a, b = RANK[st] or 0, RANK[cur.st] or 0
+			if a < b or (a == b and not (st == "taken" and cur.st == "taken" and to and cur.to and to < cur.to)) then return end
+		end
+	end
+	local before, beforeTo = cur and cur.st, cur and cur.to
+	local r = cur or { id = id, board = true }
+	r.board, r.from, r.to, r.recipe, r.t, r.st, r.u, r.text = true, from, to, recipe, t, st, u, text
+	s[id] = r
+	local me = ns.Me()
+	if st == "open" and not cur and from ~= me and not r.seen and GetServerTime() - t < EXPIRE
+		and ns.Opt("acceptRequests") and IKnow(recipe) then
+		r.seen = true
+		if ns.NotifyBoard then ns.NotifyBoard(r) end
+	elseif from == me and before ~= st and (st == "taken" or st == "done") and to ~= me then
+		if ns.NotifyBoardAnswer then ns.NotifyBoardAnswer(r) end
+	elseif beforeTo == me and to ~= me and before == "taken" and st == "taken" then
+		ns.Print(L["%s took the board post first: %s"]:format(to, R.Title(r)))
+	end
+	if ns.RefreshUI then ns.RefreshUI() end
+end
+
+-- What a request or post is about: the recipe's name, or the post's text
+function R.Title(r)
+	if r.recipe and r.recipe > 0 then
+		local name = ns.RecipeName(r.recipe)
+		if r.text and r.text ~= "" then return name .. " (" .. r.text .. ")" end
+		return name
+	end
+	return r.text or "?"
+end
+
+local function NewID()
+	local guid = (UnitGUID and UnitGUID("player") or "x"):gsub("[^%w]", "")
+	return ("%s%d%d"):format(guid:sub(-8), GetServerTime(), math.random(100, 999))
+end
+
+-- Post on the board: a recipe (recipe ID, an optional note) or free text (recipe 0 or nil)
+function R.Post(recipe, text)
+	local s, me = Store(), ns.Me()
+	recipe, text = tonumber(recipe) or 0, CleanText(text)
+	if not (s and me) or (recipe == 0 and text == "") then return nil end
+	for _, r in pairs(s) do
+		if r.board and r.from == me and (r.st == "open" or r.st == "taken")
+			and r.recipe == recipe and (recipe > 0 or r.text == text) then return r, true end
+	end
+	local now = GetServerTime()
+	local r = { id = NewID(), board = true, from = me, recipe = recipe, text = text, t = now, st = "open", u = now }
+	s[r.id] = r
+	Broadcast(r)
+	if ns.RefreshUI then ns.RefreshUI() end
+	return r
+end
+
+-- Take someone's open post: it's yours to craft
+function R.Take(id)
+	local r, me = R.Get(id), ns.Me()
+	if not (r and r.board and r.st == "open" and r.from ~= me) then return end
+	r.st, r.to, r.u = "taken", me, math.max(GetServerTime(), (r.u or 0) + 1)
+	Broadcast(r)
+	if ns.RefreshUI then ns.RefreshUI() end
+	return r
+end
+
+-- Let a post you took go back to the board
+function R.Release(id)
+	local r, me = R.Get(id), ns.Me()
+	if not (r and r.board and r.st == "taken" and r.to == me) then return end
+	r.st, r.to, r.u = "open", nil, math.max(GetServerTime(), (r.u or 0) + 1)
+	Broadcast(r)
 	if ns.RefreshUI then ns.RefreshUI() end
 end
 
@@ -169,13 +314,13 @@ function R.Create(to, recipe)
 	local s = Store()
 	local me = ns.Me()
 	if not (s and to and recipe and me) or to == me then return nil end
+	if not ns.TakesRequests(to) then return nil, "closed" end
 	-- the same recipe already asked of the same crafter and still going: that one
 	for _, r in pairs(s) do
 		if r.from == me and r.to == to and r.recipe == recipe and (r.st == "open" or r.st == "accepted") then return r, true end
 	end
 	local now = GetServerTime()
-	local guid = (UnitGUID and UnitGUID("player") or "x"):gsub("[^%w]", "")
-	local r = { id = ("%s%d%d"):format(guid:sub(-8), now, math.random(100, 999)), from = me, to = to, recipe = recipe,
+	local r = { id = NewID(), from = me, to = to, recipe = recipe,
 		t = now, st = "open", u = now, letter = false }
 	s[r.id] = r
 	Broadcast(r)
@@ -188,6 +333,15 @@ function R.Set(id, st)
 	local r = R.Get(id)
 	local me = ns.Me()
 	if not r or FINAL[r.st] then return end
+	if r.board then
+		-- a post: the taker or the poster marks it done; the poster cancels it
+		local ok = (st == "done" and r.st == "taken" and (r.to == me or r.from == me)) or (st == "cancelled" and r.from == me)
+		if not ok then return end
+		r.st, r.u = st, math.max(GetServerTime(), (r.u or 0) + 1)
+		Broadcast(r)
+		if ns.RefreshUI then ns.RefreshUI() end
+		return
+	end
 	local crafter = (st == "accepted" or st == "declined" or st == "done") and r.to == me
 	local requester = st == "cancelled" and r.from == me
 	if not (crafter or requester) then return end
@@ -207,8 +361,20 @@ end
 
 function R.MemberOnline(key)
 	local me = ns.Me()
+	if key == me then return end
 	for _, r in pairs(Store() or {}) do
-		if not FINAL[r.st] and (r.to == key or r.from == key) and key ~= me then
+		if r.board and not FINAL[r.st] and not (GetServerTime() - (r.t or 0) > EXPIRE and r.st == "open") then
+			-- every member should see the board: its poster (or taker) sends it, else anyone, whoever goes first
+			local side = r.from == me or r.to == me
+			if side or not (Online(r.from) or (r.to and Online(r.to))) then
+				local asked = GetTime()
+				local wait = side and (0.5 + math.random() * 2) or (RELAY_WAIT[1] + math.random() * (RELAY_WAIT[2] - RELAY_WAIT[1]))
+				C_Timer.After(wait, function()
+					if (lastHeard[r.id] or 0) > asked then return end
+					if not FINAL[r.st] then Broadcast(r) end
+				end)
+			end
+		elseif not r.board and not FINAL[r.st] and (r.to == key or r.from == key) then
 			local side = r.from == me or r.to == me
 			local otherSide = (r.from == key) and r.to or r.from
 			-- the sides send at once; anyone else only when the other side is offline too, and only if nobody did first
@@ -343,15 +509,24 @@ end
 function R.MailActions()
 	local me, out = ns.Me(), {}
 	for _, r in ipairs(R.List()) do
-		local name = ns.RecipeName(r.recipe)
-		if r.from == me and r.st == "open" and not r.letter then
+		local name = r.recipe > 0 and ns.RecipeName(r.recipe) or ""
+		if r.board then
+			-- handled below
+		elseif r.from == me and r.st == "open" and not r.letter then
 			out[#out + 1] = { text = L["Letter to %s: %s"]:format(r.to, name), run = function() R.PrepareLetter(r) end, request = r }
 		end
-		if r.from == me and (r.st == "open" or r.st == "accepted") and not r.mats then
+		if not r.board and r.from == me and (r.st == "open" or r.st == "accepted") and not r.mats then
 			out[#out + 1] = { text = L["Materials to %s: %s"]:format(r.to, name), run = function() return R.PrepareMaterials(r) end, request = r, mats = true }
 		end
-		if r.to == me and r.st == "accepted" then
+		if not r.board and r.to == me and r.st == "accepted" then
 			out[#out + 1] = { text = L["Send %s to %s"]:format(name, r.from), run = function() return R.PrepareResult(r) end, request = r, result = true }
+		end
+		if r.board and r.st == "taken" and r.recipe > 0 then
+			if r.from == me and not r.mats then
+				out[#out + 1] = { text = L["Materials to %s: %s"]:format(r.to, name), run = function() return R.PrepareMaterials(r) end, request = r, mats = true }
+			elseif r.to == me then
+				out[#out + 1] = { text = L["Send %s to %s"]:format(name, r.from), run = function() return R.PrepareResult(r) end, request = r, result = true }
+			end
 		end
 	end
 	return out
@@ -382,4 +557,6 @@ C_Timer.After(20, function()
 	local n, c = R.PendingForMe(), R.ToCraft()
 	if n > 0 then ns.Print(L["You have %d recipe requests waiting for an answer. /gcraft requests"]:format(n)) end
 	if c > 0 then ns.Print(L["You have %d accepted requests to craft."]:format(c)) end
+	local b = R.BoardOpen()
+	if b > 0 then ns.Print(L["%d open posts on the guild board. /gcraft requests"]:format(b)) end
 end)

@@ -47,6 +47,7 @@ ns.DEFAULTS = {
 	shortcut = "alt",      -- modified click on an item to request it: "alt", "ctrlalt", "shiftalt", "none"
 	shareAlts = true,      -- tell the guild which characters are this player's
 	sound = true,          -- sound with the notices
+	acceptRequests = true, -- guildmates can send me requests (and board posts I can craft notify me)
 }
 function ns.Opt(key)
 	local db = GuildCraftersForeverDB
@@ -269,6 +270,13 @@ function ns.RecipeForPatternName(itemName)
 	return byName[rest:lower()]
 end
 
+-- Whether a member takes requests (members without the addon, or before 0.4.0-beta2, do)
+function ns.TakesRequests(key)
+	if key == ns.Me() then return ns.Opt("acceptRequests") and true or false end
+	local rec = ns.Record(key)
+	return not (rec and rec.nr)
+end
+
 -- Who knows each recipe: recipe -> { member keys }, rebuilt when any record changes
 local craftIndex, craftVersion
 function ns.CraftIndex()
@@ -419,6 +427,7 @@ function ns.Rescan(what)
 	else
 		rec.ac, rec.mn = nil, nil
 	end
+	rec.nr = (not ns.Opt("acceptRequests")) or nil
 	if what == "all" or what == "prof" then
 		ns.ScanProfessions(rec)
 		ns.ScanKnownRecipes(rec)

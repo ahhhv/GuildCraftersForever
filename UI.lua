@@ -154,6 +154,7 @@ local function MakeList(parent, extent, init, twoLine)
 		button.btn1:Hide()
 		button.btn2:Hide()
 		button.btn1:SetSize(84, 20)
+		button.btn1:SetEnabled(true)
 		button.btn2:SetSize(84, 20)
 		if twoLine then
 			button.right:Hide()
@@ -567,7 +568,9 @@ local function BuildProfPanel()
 				elseif d.crafter and d.crafter.online then Whisper(d.crafter.name) end
 			end)
 			if d.crafter and d.crafter.name ~= ns.Me() and ns.Req then
-				b.btn1:SetText(L["Request"])
+				local open = ns.TakesRequests(d.crafter.name)
+				b.btn1:SetText(open and L["Request"] or L["No requests"])
+				b.btn1:SetEnabled(open)
 				b.btn1:SetScript("OnClick", function() ns.AskRequest(d.crafter.name, d.id) end)
 				b.btn1:Show()
 				b.right:SetText("")

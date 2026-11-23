@@ -23,6 +23,10 @@ Download it from CurseForge (search for "GuildCrafters Forever", game version Fo
 - Item tooltips show who in your guild can craft the item; recipe items show who already knows them.
 - **Alt+click** an item (configurable) to request it from a guildmate.
 
+### Guild board
+- Post what you need to the whole guild; whoever can craft it gets a notice, and the first to take it crafts it.
+- Don't want requests? Turn them off in the options: you still see the board.
+
 ### Mains and alts
 - Each player's characters grouped under their main, automatically (same account) or from the guild note ("alt de Jami").
 - `/gcraft main` picks your main; alts can be kept private in the options.

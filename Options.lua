@@ -40,6 +40,10 @@ function ns.SetUpOptions()
 		L["Your characters with the addon show together under your main. Untick it to keep your alts private."],
 		function() ns.Rescan("all") end)
 
+	Check("acceptRequests", L["Take recipe requests"],
+		L["Guildmates can ask you to craft their recipes, and board posts you can craft send you a notice. Untick it and nobody can send you requests; you still see the guild board."],
+		function() ns.Rescan("all") end)
+
 	Check("sound", L["Sound with request notices"], L["Play a sound when someone asks you for a recipe or answers your request."])
 
 	Settings.RegisterAddOnCategory(category)

@@ -31,7 +31,8 @@ local function Crafters(recipes)
 			if key ~= me and not seen[key] then
 				seen[key] = true
 				local e = ns.inRoster[key]
-				out[#out + 1] = { key = key, recipe = recipe, online = e and e.online or false, class = e and e.class }
+				out[#out + 1] = { key = key, recipe = recipe, online = e and e.online or false, class = e and e.class,
+					closed = not ns.TakesRequests(key) }
 			end
 		end
 	end
@@ -67,6 +68,7 @@ local function Names(list)
 		local main = ns.MainOf(c.key)
 		if main ~= c.key then name = name .. " |cff909090(" .. L["alt of %s"]:format(main) .. ")|r" end
 		if c.online then name = name .. " |cff40ff40•|r" end
+		if c.closed then name = name .. " |cff909090(" .. L["no requests"] .. ")|r" end
 		parts[#parts + 1] = name
 	end
 	return table.concat(parts, ", ")
@@ -92,7 +94,11 @@ local function AddLines(tooltip, itemID, itemName)
 			head(L["Crafted in your guild by:"])
 			tooltip:AddLine(Names(list), 1, 1, 1, true)
 			local key = SHORTCUT_TEXT[ns.Opt("shortcut")]
-			if key then tooltip:AddLine(L["%s+click: request it from the guild"]:format(key), 0.5, 0.75, 1) end
+			if key then
+				local open = false
+				for _, c in ipairs(list) do if not c.closed then open = true break end end
+				tooltip:AddLine((open and L["%s+click: request it from the guild"] or L["%s+click: post it on the guild board"]):format(key), 0.5, 0.75, 1)
+			end
 		end
 		if IKnow(recipes) then
 			if not added then head(L["Crafted in your guild by:"]) end
@@ -146,7 +152,8 @@ function ns.RequestItem(itemID)
 	local recipes = ns.RecipesForItem(itemID)
 	local list = Crafters(recipes)
 	if #list == 0 then
-		ns.Print(L["Nobody in your guild with the addon can craft %s."]:format(C_Item.GetItemNameByID(itemID) or ("#" .. itemID)))
+		-- nobody with the addon knows it: the guild board may still find someone
+		if recipes and recipes[1] and ns.ConfirmPost then ns.ConfirmPost(recipes[1]) end
 		return
 	end
 	if ns.ChooseCrafter then ns.ChooseCrafter(itemID, list) end

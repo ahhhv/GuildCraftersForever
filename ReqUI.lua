@@ -16,11 +16,14 @@ local ROW = 40
 local STATE_TEXT = {
 	open = { "Waiting", 1, 0.82, 0 },
 	accepted = { "Accepted", 0.3, 1, 0.3 },
+	taken = { "Taken", 0.3, 1, 0.3 },
 	declined = { "Declined", 1, 0.35, 0.3 },
 	done = { "Done", 0.5, 0.8, 1 },
 	cancelled = { "Cancelled", 0.6, 0.6, 0.6 },
 	expired = { "Expired", 0.6, 0.6, 0.6 },
 }
+
+local BOARD_ICON = 134939 -- a scroll
 
 local function Icon(tex, size) return ("|T%s:%d:%d:0:0|t"):format(tostring(tex or 134400), size or 16, size or 16) end
 
@@ -80,6 +83,10 @@ end
 function ns.AskRequest(to, recipe)
 	local text = L["Ask %s to craft %s for you?\n\nThey'll get a notice (when they log in, if they're offline), and next time you open a mailbox the addon will have a letter ready for them."]
 		:format("|cffffd100" .. to .. "|r", "|cffffffff" .. ns.RecipeName(recipe) .. "|r")
+	if not ns.TakesRequests(to) then
+		ns.Print(L["%s doesn't take requests. You can post it on the guild board instead."]:format(to))
+		return
+	end
 	Confirm(text, L["Request"], function()
 		local r, already = ns.Req.Create(to, recipe)
 		if not r then return end
@@ -91,9 +98,80 @@ function ns.AskRequest(to, recipe)
 	end)
 end
 
--- Who to ask for an item (the tooltip's shortcut): one button per crafter, online first
+--------------------------------------------------------------------------------
+-- Posting on the guild board
+--------------------------------------------------------------------------------
+
+local function Posted(r, already)
+	if not r then return end
+	if already then
+		ns.Print(L["It's already on the guild board: %s"]:format(ns.Req.Title(r)))
+	else
+		ns.Print(L["Posted on the guild board: %s. Whoever can craft it gets a notice."]:format(ns.Req.Title(r)))
+	end
+end
+
+-- A recipe to the board, after a confirmation
+function ns.ConfirmPost(recipe)
+	Confirm(L["Post %s on the guild board?\n\nEveryone in the guild with the addon will see it, and those who can craft it get a notice. The first to take it crafts it."]
+		:format("|cffffffff" .. ns.RecipeName(recipe) .. "|r"), L["Post"], function() Posted(ns.Req.Post(recipe)) end)
+end
+
+-- Free text to the board: our own little window with a text box
+local poster
+function ns.PostText()
+	if not poster then
+		local p = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+		p:SetSize(420, 150)
+		p:SetPoint("CENTER", 0, 120)
+		p:SetFrameStrata("DIALOG")
+		p:EnableMouse(true)
+		if p.SetBackdrop then
+			p:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+				edgeSize = 14, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+			p:SetBackdropColor(0.05, 0.13, 0.08, 0.97)
+			p:SetBackdropBorderColor(0.75, 0.5, 0.25, 1)
+		end
+		p.text = p:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		p.text:SetPoint("TOPLEFT", 18, -16)
+		p.text:SetPoint("TOPRIGHT", -18, -16)
+		p.text:SetJustifyH("LEFT")
+		p.text:SetText(L["What are you looking for? (for an item someone can craft, Alt+click it instead)"])
+		p.edit = CreateFrame("EditBox", nil, p, "InputBoxTemplate")
+		p.edit:SetSize(370, 24)
+		p.edit:SetPoint("TOP", 0, -58)
+		p.edit:SetAutoFocus(true)
+		p.edit:SetMaxLetters(120)
+		p.ok = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+		p.ok:SetSize(120, 24)
+		p.ok:SetPoint("BOTTOMRIGHT", p, "BOTTOM", -6, 14)
+		p.ok:SetText(L["Post"])
+		p.no = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+		p.no:SetSize(120, 24)
+		p.no:SetPoint("BOTTOMLEFT", p, "BOTTOM", 6, 14)
+		p.no:SetText(CANCEL or "Cancel")
+		local function Go()
+			local text = ns.Req.CleanText(p.edit:GetText())
+			if text == "" then return end
+			p:Hide()
+			Posted(ns.Req.Post(0, text))
+		end
+		p.ok:SetScript("OnClick", Go)
+		p.edit:SetScript("OnEnterPressed", Go)
+		p.edit:SetScript("OnEscapePressed", function() p:Hide() end)
+		p.no:SetScript("OnClick", function() p:Hide() end)
+		p:Hide()
+		poster = p
+	end
+	poster.edit:SetText("")
+	poster:Show()
+	poster.edit:SetFocus()
+end
+
+-- Who to ask for an item (the tooltip's shortcut): one button per crafter who takes requests, online
+-- first, and the guild board
 local picker
-function ns.ChooseCrafter(itemID, list)
+function ns.ChooseCrafter(itemID, all)
 	if not picker then
 		local p = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
 		p:SetWidth(320)
@@ -118,9 +196,18 @@ function ns.ChooseCrafter(itemID, list)
 		picker = p
 	end
 	local p = picker
+	local list = {}
+	for _, c in ipairs(all) do
+		if not c.closed then list[#list + 1] = c end
+	end
 	local itemName = C_Item.GetItemNameByID(itemID) or ("#" .. itemID)
-	p.text:SetText(L["Who do you want to ask for %s?"]:format("|cffffffff" .. itemName .. "|r"))
-	local y = -48
+	if #list > 0 then
+		p.text:SetText(L["Who do you want to ask for %s?"]:format("|cffffffff" .. itemName .. "|r"))
+	else
+		p.text:SetText(L["Nobody who crafts %s takes requests right now. You can post it on the guild board."]:format("|cffffffff" .. itemName .. "|r"))
+	end
+	p.text:SetJustifyH("CENTER")
+	local y = -48 - math.max(0, (p.text:GetStringHeight() or 14) - 14)
 	for i = 1, math.min(#list, 8) do
 		local c = list[i]
 		local b = p.buttons[i]
@@ -146,6 +233,19 @@ function ns.ChooseCrafter(itemID, list)
 		y = y - 28
 	end
 	for i = math.min(#list, 8) + 1, #p.buttons do p.buttons[i]:Hide() end
+	if not p.board then
+		p.board = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+		p.board:SetSize(288, 24)
+		p.board:SetText(L["Post it on the guild board"])
+	end
+	local recipe = (all[1] and all[1].recipe) or (ns.RecipesForItem(itemID) or {})[1]
+	p.board:SetScript("OnClick", function()
+		p:Hide()
+		Posted(ns.Req.Post(recipe))
+	end)
+	p.board:ClearAllPoints()
+	p.board:SetPoint("TOP", 0, y - 4)
+	y = y - 32
 	p.cancel:ClearAllPoints()
 	p.cancel:SetPoint("TOP", 0, y - 6)
 	p:SetHeight(-y + 44)
@@ -234,6 +334,29 @@ function ns.NotifyRequest(r)
 	if ns.RefreshUI then ns.RefreshUI() end
 end
 
+-- A board post I can craft
+function ns.NotifyBoard(r)
+	local title = ns.Req.Title(r)
+	ns.Print(L["Guild board: %s is looking for %s, and you can craft it. /gcraft requests"]:format("|cffffd100" .. r.from .. "|r", title))
+	ShowToast(L["Guild board"], L["%s is looking for: %s"]:format(r.from, title), ns.RecipeIcon(r.recipe),
+		{ L["Take it"], function() ns.Req.Take(r.id) end },
+		{ L["View"], OpenRequests })
+	if ns.RefreshUI then ns.RefreshUI() end
+end
+
+-- Someone took my post, or crafted it
+function ns.NotifyBoardAnswer(r)
+	local title = ns.Req.Title(r)
+	local line
+	if r.st == "taken" then
+		line = L["%s took your board post: %s"]:format(r.to or "?", title)
+	else
+		line = L["%s has crafted your %s: check your mailbox."]:format(r.to or "?", title)
+	end
+	ns.Print(line)
+	ShowToast(L["Guild board"], line, r.recipe > 0 and ns.RecipeIcon(r.recipe) or BOARD_ICON, { L["View"], OpenRequests })
+end
+
 -- The crafter answered me
 function ns.NotifyAnswer(r)
 	local name = ns.RecipeName(r.recipe)
@@ -291,6 +414,7 @@ local function InitRow(b, d)
 	local r = d.r
 	local me = ns.Me()
 	local mine = r.from == me
+	if r.board then return ns.InitBoardRow(b, r, mine) end
 	b.left:SetText(Icon(ns.RecipeIcon(r.recipe)) .. " " .. ns.RecipeName(r.recipe))
 	b.left:SetTextColor(1, 1, 1)
 	local who = mine and L["For: %s"]:format(r.to) or L["From: %s"]:format(r.from)
@@ -326,6 +450,60 @@ local function InitRow(b, d)
 	end)
 end
 
+-- A board post's row
+function ns.InitBoardRow(b, r, mine)
+	local me = ns.Me()
+	local icon = r.recipe > 0 and ns.RecipeIcon(r.recipe) or BOARD_ICON
+	b.left:SetText(Icon(icon) .. " " .. ns.Req.Title(r))
+	b.left:SetTextColor(1, 1, 1)
+	local who
+	if mine then
+		who = r.to and L["Crafted by: %s"]:format(r.to) or L["Your post"]
+	else
+		who = L["From: %s"]:format(r.from)
+	end
+	local line = ("%s  ·  %s  ·  %s"):format(who, r.st == "open" and ("|cffffd100" .. L["On the board"] .. "|r") or StateText(r.st), ns.Ago(r.u))
+	if r.st == "open" and not mine and ns.Req.IKnow(r.recipe) then line = line .. "  ·  |cff40ff40" .. L["you can craft it"] .. "|r" end
+	b.sub:SetText(line)
+	b.sub:SetTextColor(0.85, 0.85, 0.85)
+	local buttons = 0
+	if not ns.Req.FINAL[r.st] then
+		if r.st == "open" and not mine then
+			Button(b.btn1, L["Take it"], function() ns.Req.Take(r.id) end)
+			buttons = 1
+		elseif r.st == "taken" and r.to == me then
+			Button(b.btn1, L["Done"], function() ns.Req.Set(r.id, "done") end)
+			Button(b.btn2, L["Let go"], function() ns.Req.Release(r.id) end)
+			buttons = 2
+		elseif mine and r.st == "taken" then
+			Button(b.btn1, L["Done"], function() ns.Req.Set(r.id, "done") end)
+			Button(b.btn2, L["Cancel"], function() ns.Req.Set(r.id, "cancelled") end)
+			buttons = 2
+		elseif mine then
+			Button(b.btn1, L["Cancel"], function() ns.Req.Set(r.id, "cancelled") end)
+			buttons = 1
+		end
+	else
+		b.left:SetAlpha(0.55)
+		b.sub:SetAlpha(0.55)
+	end
+	Place(b, buttons)
+	b:SetScript("OnEnter", function(self)
+		if r.recipe > 0 then
+			ns.RecipeTooltipFor(self, r.recipe)
+		elseif GameTooltip then
+			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+			GameTooltip:SetText(r.text or "", 1, 1, 1, 1, true)
+			GameTooltip:Show()
+		end
+	end)
+	b:SetScript("OnClick", function(_, button)
+		local other = (r.from == me) and r.to or r.from
+		if button == "RightButton" and other and ns.Whisper then ns.Whisper(other)
+		elseif IsShiftKeyDown() and r.recipe > 0 and ns.RecipeLinkFor then ns.InsertLinkFor(ns.RecipeLinkFor(r.recipe)) end
+	end)
+end
+
 function ns.BuildReqPanel(MakePanel, MakeList, _, RecipeTooltip)
 	local p = MakePanel()
 	req.panel = p
@@ -336,7 +514,7 @@ function ns.BuildReqPanel(MakePanel, MakeList, _, RecipeTooltip)
 	local hint = p:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 	hint:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -4)
 	hint:SetJustifyH("LEFT")
-	hint:SetText(L["Ask for a recipe with its Request button in the Professions tab. Requests reach the crafter even if they're offline, and wait 7 days for an answer."])
+	hint:SetText(L["Ask a crafter with Request in the Professions tab, or Alt+click an item. Anything else, post it on the guild board. Requests reach people even when offline and wait 7 days."])
 	-- Clear history: a second click within 4 seconds confirms
 	req.clear = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
 	req.clear:SetSize(150, 22)
@@ -357,6 +535,11 @@ function ns.BuildReqPanel(MakePanel, MakeList, _, RecipeTooltip)
 			end)
 		end
 	end)
+	req.post = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+	req.post:SetSize(150, 22)
+	req.post:SetPoint("TOPRIGHT", req.clear, "BOTTOMRIGHT", 0, -4)
+	req.post:SetText(L["Post on the board"])
+	req.post:SetScript("OnClick", function() ns.PostText() end)
 	hint:SetPoint("RIGHT", req.clear, "LEFT", -10, 0)
 	req.list = MakeList(p, ROW, InitRow, true)
 	req.list.box:SetPoint("TOPLEFT", 10, -62)
@@ -367,9 +550,10 @@ end
 function ns.RefreshReq()
 	if not (req.list and ns.Req) then return end
 	local me = ns.Me()
-	local forMe, mine = {}, {}
+	local forMe, mine, board = {}, {}, {}
 	for _, r in ipairs(ns.Req.List()) do
-		if r.to == me then forMe[#forMe + 1] = { r = r }
+		if r.board and r.st == "open" then board[#board + 1] = { r = r }
+		elseif r.to == me then forMe[#forMe + 1] = { r = r }
 		elseif r.from == me then mine[#mine + 1] = { r = r } end
 	end
 	local rows = {}
@@ -382,6 +566,11 @@ function ns.RefreshReq()
 		hint = #mine == 0 and L["Nothing for now."] or nil }
 	if not req.collapsed.mine then
 		for _, d in ipairs(mine) do rows[#rows + 1] = d end
+	end
+	rows[#rows + 1] = { header = true, key = "board", text = L["Guild board"] .. ("  (%d)"):format(#board),
+		hint = #board == 0 and L["Nothing for now."] or (not ns.Opt("acceptRequests") and L["You don't take requests (options)"]) or nil }
+	if not req.collapsed.board then
+		for _, d in ipairs(board) do rows[#rows + 1] = d end
 	end
 	req.list:Set(rows)
 	req.clear:SetEnabled(ns.Req.FinishedCount() > 0)

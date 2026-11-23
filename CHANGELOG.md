@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0-beta2
+
+### New: the guild board
+- Post what you need to the whole guild instead of one crafter: an item someone can craft, or free text ("looking for 20 Linen Cloth").
+- Guildmates who can craft it get a notice; everyone with the addon sees the post in the Requests tab, under **Guild board**. The first to press **Take it** crafts it, and the mailbox helper takes care of the materials and the item as with any request.
+- Post from the **Post on the board** button in the Requests tab, from the crafter picker (Alt+click an item), or by Alt+clicking an item nobody with the addon can craft.
+- Posts reach members who were offline, and expire after 7 days if nobody takes them.
+
+### New: turn requests off
+- Options > **Take recipe requests**: untick it and nobody can send you requests, and board posts don't notify you. You still show as a crafter (marked "no requests") and still see the board.
+
 ## 0.4.0-beta1
 
 ### New: "Who crafts it?" on item tooltips
