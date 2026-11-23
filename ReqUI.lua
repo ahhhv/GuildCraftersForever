@@ -30,6 +30,7 @@ local function StateText(st)
 end
 
 local function Sound()
+	if not ns.Opt("sound") then return end
 	if PlaySound then pcall(PlaySound, (SOUNDKIT and SOUNDKIT.TELL_MESSAGE) or 3081) end
 end
 
@@ -88,6 +89,67 @@ function ns.AskRequest(to, recipe)
 			ns.Print(L["Request sent to %s: %s. Next time you open a mailbox you can also send them a letter."]:format(to, ns.RecipeName(recipe)))
 		end
 	end)
+end
+
+-- Who to ask for an item (the tooltip's shortcut): one button per crafter, online first
+local picker
+function ns.ChooseCrafter(itemID, list)
+	if not picker then
+		local p = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+		p:SetWidth(320)
+		p:SetPoint("CENTER", 0, 120)
+		p:SetFrameStrata("DIALOG")
+		p:EnableMouse(true)
+		if p.SetBackdrop then
+			p:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+				edgeSize = 14, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+			p:SetBackdropColor(0.05, 0.13, 0.08, 0.97)
+			p:SetBackdropBorderColor(0.75, 0.5, 0.25, 1)
+		end
+		p.text = p:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		p.text:SetPoint("TOPLEFT", 16, -16)
+		p.text:SetPoint("TOPRIGHT", -16, -16)
+		p.buttons = {}
+		p.cancel = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+		p.cancel:SetSize(120, 22)
+		p.cancel:SetText(CANCEL or "Cancel")
+		p.cancel:SetScript("OnClick", function() p:Hide() end)
+		p:Hide()
+		picker = p
+	end
+	local p = picker
+	local itemName = C_Item.GetItemNameByID(itemID) or ("#" .. itemID)
+	p.text:SetText(L["Who do you want to ask for %s?"]:format("|cffffffff" .. itemName .. "|r"))
+	local y = -48
+	for i = 1, math.min(#list, 8) do
+		local c = list[i]
+		local b = p.buttons[i]
+		if not b then
+			b = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
+			b:SetSize(288, 24)
+			p.buttons[i] = b
+		end
+		b:ClearAllPoints()
+		b:SetPoint("TOP", 0, y)
+		b:SetText(c.key .. (c.online and ("  |cff40ff40" .. L["online"] .. "|r") or ""))
+		b:SetScript("OnClick", function()
+			p:Hide()
+			local r, already = ns.Req.Create(c.key, c.recipe)
+			if not r then return end
+			if already then
+				ns.Print(L["You had already asked %s for %s."]:format(c.key, ns.RecipeName(c.recipe)))
+			else
+				ns.Print(L["Request sent to %s: %s. Next time you open a mailbox you can also send them a letter."]:format(c.key, ns.RecipeName(c.recipe)))
+			end
+		end)
+		b:Show()
+		y = y - 28
+	end
+	for i = math.min(#list, 8) + 1, #p.buttons do p.buttons[i]:Hide() end
+	p.cancel:ClearAllPoints()
+	p.cancel:SetPoint("TOP", 0, y - 6)
+	p:SetHeight(-y + 44)
+	p:Show()
 end
 
 --------------------------------------------------------------------------------

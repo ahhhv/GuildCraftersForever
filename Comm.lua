@@ -110,7 +110,7 @@ local function Num(v) return type(v) == "number" and v or nil end
 -- A received record cleaned to what we use; nil if it isn't one
 local function Clean(rec)
 	if type(rec) ~= "table" or Num(rec.t) == nil or Num(rec.v) ~= ns.PROTOCOL then return nil end
-	local out = { v = rec.v, t = rec.t, c = Str(rec.c, 20), l = Num(rec.l), g = Str(rec.g, 60), p = {} }
+	local out = { v = rec.v, t = rec.t, c = Str(rec.c, 20), l = Num(rec.l), g = Str(rec.g, 60), ac = Str(rec.ac, 32), mn = Str(rec.mn, 60), p = {} }
 	if type(rec.p) == "table" then
 		for skill, p in pairs(rec.p) do
 			if Num(skill) and type(p) == "table" then
@@ -186,6 +186,7 @@ local function Received(sender, rec)
 	local had = g.members[sender]
 	if had and (had.t or 0) > rec.t then return end
 	g.members[sender] = rec
+	ns.dataVersion = (ns.dataVersion or 0) + 1
 	ns.stats.records = ns.stats.records + 1
 	ns.Log("recibido el registro de " .. sender)
 	if ns.RefreshUI then ns.RefreshUI() end

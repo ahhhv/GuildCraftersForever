@@ -19,6 +19,14 @@ Download it from CurseForge (search for "GuildCrafters Forever", game version Fo
 - **Requests tab** with a counter: accept, decline, mark as done or cancel; **Clear history**.
 - **Mailbox helper**: a ready-written letter, the recipe's materials attached from your bags, and the crafted item sent back in one click.
 
+### "Who crafts it?" tooltips
+- Item tooltips show who in your guild can craft the item; recipe items show who already knows them.
+- **Alt+click** an item (configurable) to request it from a guildmate.
+
+### Mains and alts
+- Each player's characters grouped under their main, automatically (same account) or from the guild note ("alt de Jami").
+- `/gcraft main` picks your main; alts can be kept private in the options.
+
 ### Specializations & talents tab
 - Points per talent tree for **both spec groups**, and a clickable link to each member's build in Blizzard's talent window.
 
@@ -28,6 +36,8 @@ Download it from CurseForge (search for "GuildCrafters Forever", game version Fo
 | `/gcraft` | Professions tab |
 | `/gcraft talents` | Specializations & talents tab |
 | `/gcraft requests` | Requests tab |
+| `/gcraft main` | Make this character your main |
+| `/gcraft options` | Open the options |
 | `/gcraft send` | Send your data again |
 | `/gcraft prune` | Forget members who left the guild |
 | `/gcraft status` | Sync diagnostics (for bug reports) |

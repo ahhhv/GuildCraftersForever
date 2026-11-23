@@ -19,6 +19,9 @@ Locale.lua
 RecipeList.lua
 Data.lua
 Comm.lua
+Alts.lua
 Requests.lua
 UI.lua
 ReqUI.lua
+Tooltip.lua
+Options.lua

@@ -30,6 +30,7 @@ local tabs, panels = {}, {}
 local state = {
 	prof = nil, search = "", online = false, selected = nil,             -- professions tab
 	expanded = {},                                                       -- professions opened in the detail (by skill)
+	altsOpen = {},                                                       -- players whose alts are shown (by group id)
 	talSearch = "", talOnline = false, talSelected = nil,                -- talents tab
 }
 ns._state = state
@@ -152,6 +153,8 @@ local function MakeList(parent, extent, init, twoLine)
 		button.sel:Hide()
 		button.btn1:Hide()
 		button.btn2:Hide()
+		button.btn1:SetSize(84, 20)
+		button.btn2:SetSize(84, 20)
 		if twoLine then
 			button.right:Hide()
 			button.left:ClearAllPoints()
@@ -219,16 +222,46 @@ end
 -- A member row of either tab's list
 local function MemberRow(b, d, subText)
 	local r, g, bl = ClassRGB(d.class)
-	b.left:SetText(d.short)
+	local name = d.short
+	if d.head then
+		name = name .. ("  |cffa0a0a0(+%d %s)|r"):format(d.altCount, d.altCount == 1 and L["alt"] or L["alts"])
+	elseif d.alt then
+		name = "|cff808080" .. L["alt"] .. ":|r " .. name
+	end
+	b.left:SetText(name)
 	b.left:SetTextColor(r, g, bl)
 	b.left:SetAlpha(d.online and 1 or 0.55)
-	b.sub:SetText(subText or "")
+	b.sub:SetText((d.alt and "      " or "") .. (subText or ""))
 	b.sub:SetTextColor(0.85, 0.85, 0.85)
 	b.sub:SetAlpha(d.online and 1 or 0.6)
 	if d.noaddon then
 		b.left:SetAlpha(0.4)
 		b.sub:SetText(L["no addon"])
 		b.sub:SetTextColor(0.5, 0.5, 0.5)
+	end
+	-- the player's other characters: shown or hidden with the small button
+	local anchor
+	if d.head then
+		b.btn1:SetSize(28, 20)
+		b.btn1:SetText(d.open and "-" or "+")
+		b.btn1:SetScript("OnClick", function()
+			state.altsOpen[d.gid] = not d.open or nil
+			ns.RefreshUI()
+		end)
+		b.btn1:SetScript("OnEnter", function(self)
+			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+			GameTooltip:AddLine(d.open and L["Hide alts"] or L["Show alts"])
+			GameTooltip:Show()
+		end)
+		b.btn1:SetScript("OnLeave", GameTooltip_Hide)
+		b.btn1:Show()
+		anchor = b.btn1
+	end
+	for _, fs in ipairs({ b.left, b.sub }) do
+		local p, rel, rp, x, y = fs:GetPoint(1)
+		fs:ClearAllPoints()
+		fs:SetPoint(p, rel, rp, (d.alt and 18 or 8), y)
+		if anchor then fs:SetPoint("RIGHT", anchor, "LEFT", -6, 0) else fs:SetPoint("RIGHT", -6, 0) end
 	end
 end
 
@@ -324,9 +357,21 @@ local function ProfRightText(d)
 		if p.s then t = t .. "  |cffffd100" .. p.s .. "|r" end
 		return t
 	end
+	-- a player with hidden alts: every character's professions, each at its best
+	local best = {}
+	local recs = { rec }
+	if d.head and not d.open then
+		recs = {}
+		for _, a in ipairs(d.group or {}) do if a.rec then recs[#recs + 1] = a.rec end end
+	end
+	for _, r in ipairs(recs) do
+		for skill, p in pairs(r.p or {}) do
+			if not best[skill] or (p.r or 0) > (best[skill].r or 0) then best[skill] = p end
+		end
+	end
 	local parts = {}
 	for _, skill in ipairs(ns.PROF_ORDER) do
-		local p = rec.p[skill]
+		local p = best[skill]
 		if p then parts[#parts + 1] = Icon(p.i or ns.PROF_ICONS[skill], 13) .. " " .. (p.r or 0) end
 	end
 	return table.concat(parts, "  ")
@@ -410,6 +455,7 @@ local function RefreshProf()
 		if q ~= "" and (a.matches or 0) ~= (b.matches or 0) then return (a.matches or 0) > (b.matches or 0) end
 		return a.short < b.short
 	end)
+	list = ns.GroupRows(list, state.altsOpen)
 	state.selectedData = nil
 	for _, d in ipairs(list) do if d.name == state.selected then state.selectedData = d end end
 	if not state.selectedData and state.selected then
@@ -693,7 +739,7 @@ local function RefreshTal()
 		if d.name == state.talSelected then picked = d end
 	end
 	tal.count:SetText(L["Members with the addon: %d"]:format(count))
-	tal.members:Set(list)
+	tal.members:Set(ns.GroupRows(list, state.altsOpen))
 	RefreshTalDetail(picked)
 end
 
@@ -957,6 +1003,12 @@ local function Slash(msg)
 		ns.Rescan("all")
 		ns.Hello(false)
 		ns.Print(L["Sharing your data with the guild."])
+	elseif cmd == "main" then
+		GuildCraftersForeverDB.main = ns.Me()
+		ns.Rescan("all")
+		ns.Print(L["%s is now your main: your other characters will show as its alts."]:format(ns.Me()))
+	elseif cmd == "opciones" or cmd == "options" or cmd == "config" then
+		if ns.OpenOptions then ns.OpenOptions() end
 	elseif cmd == "estado" or cmd == "status" then
 		local g = ns.Guild()
 		local n, mine = 0, 0
@@ -976,6 +1028,8 @@ local function Slash(msg)
 		ns.Print("  /gcraft - " .. L["open the guild window on the professions tab"])
 		ns.Print("  /gcraft talentos - " .. L["Specializations and talents"])
 		ns.Print("  /gcraft solicitudes - " .. L["Requests"])
+		ns.Print("  /gcraft main - " .. L["make this character your main"])
+		ns.Print("  /gcraft opciones - " .. L["Options"])
 		ns.Print("  /gcraft enviar - " .. L["send your data again"])
 		ns.Print("  /gcraft limpiar - " .. L["forget data of members who left the guild"])
 		ns.Print("  /gcraft estado - diagnóstico de la sincronización")

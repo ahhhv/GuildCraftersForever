@@ -41,6 +41,20 @@ ns.PROF_ICONS = {
 	[129] = "Interface\\Icons\\Spell_Holy_SealOfSacrifice", [356] = "Interface\\Icons\\Trade_Fishing",
 }
 
+-- Options (Options.lua shows them in Blizzard's settings)
+ns.DEFAULTS = {
+	tooltip = true,        -- "who crafts it" lines on item tooltips
+	shortcut = "alt",      -- modified click on an item to request it: "alt", "ctrlalt", "shiftalt", "none"
+	shareAlts = true,      -- tell the guild which characters are this player's
+	sound = true,          -- sound with the notices
+}
+function ns.Opt(key)
+	local db = GuildCraftersForeverDB
+	local v = db and db.opts and db.opts[key]
+	if v == nil then return ns.DEFAULTS[key] end
+	return v
+end
+
 ns.roster = {}        -- { { name, short, level, class, online, rank, guid } } in roster order
 ns.inRoster = {}      -- key -> roster entry
 ns.byGuid = {}        -- GUID -> roster entry
@@ -222,6 +236,60 @@ function ns.RecipeItem(id)
 	return recipeItem[id]
 end
 
+-- The recipes that make `itemID` (usually one)
+local itemRecipes
+function ns.RecipesForItem(itemID)
+	if not itemRecipes then
+		Parsed()
+		itemRecipes = {}
+		for id, item in pairs(recipeItem) do
+			itemRecipes[item] = itemRecipes[item] or {}
+			table.insert(itemRecipes[item], id)
+		end
+	end
+	return itemRecipes[itemID]
+end
+
+-- The recipe a pattern teaches, by its name: "Pattern: Woolen Bag" teaches "Woolen Bag" (in any language,
+-- the item is the recipe's name after a prefix and a colon). Built once, on the first recipe item hovered.
+local byName
+function ns.RecipeForPatternName(itemName)
+	if type(itemName) ~= "string" then return nil end
+	local rest = itemName:match("^[^:]+:%s*(.+)$")
+	if not rest then return nil end
+	if not byName then
+		byName = {}
+		for _, ids in pairs(Parsed()) do
+			for _, id in ipairs(ids) do
+				local n = (C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(id)) or (GetSpellInfo and GetSpellInfo(id))
+				if n then byName[n:lower()] = byName[n:lower()] or id end
+			end
+		end
+	end
+	return byName[rest:lower()]
+end
+
+-- Who knows each recipe: recipe -> { member keys }, rebuilt when any record changes
+local craftIndex, craftVersion
+function ns.CraftIndex()
+	local v = ns.dataVersion or 0
+	if craftIndex and craftVersion == v then return craftIndex end
+	craftIndex, craftVersion = {}, v
+	local g = ns.Guild()
+	for key, rec in pairs(g and g.members or {}) do
+		if #ns.roster == 0 or ns.inRoster[key] then
+			for _, p in pairs(rec.p or {}) do
+				for _, id in ipairs(p.rc or {}) do
+					local list = craftIndex[id]
+					if not list then list = {} craftIndex[id] = list end
+					list[#list + 1] = key
+				end
+			end
+		end
+	end
+	return craftIndex
+end
+
 local function Known(id)
 	if C_SpellBook and C_SpellBook.IsSpellKnown then
 		local ok, known = pcall(C_SpellBook.IsSpellKnown, id)
@@ -344,6 +412,13 @@ function ns.Rescan(what)
 	local before = Fingerprint(rec)
 	local _, class = UnitClass("player")
 	rec.v, rec.c, rec.l, rec.g = ns.PROTOCOL, class, UnitLevel("player"), UnitGUID and UnitGUID("player") or nil
+	-- alts: the account's token and the main picked with /gcraft main, unless the player keeps them private
+	local db = GuildCraftersForeverDB
+	if ns.Opt("shareAlts") then
+		rec.ac, rec.mn = db.account, db.main
+	else
+		rec.ac, rec.mn = nil, nil
+	end
 	if what == "all" or what == "prof" then
 		ns.ScanProfessions(rec)
 		ns.ScanKnownRecipes(rec)
@@ -358,6 +433,7 @@ function ns.Rescan(what)
 	local g = ns.Guild()
 	if g then g.members[ns.Me()] = rec end
 	if changed then
+		ns.dataVersion = (ns.dataVersion or 0) + 1
 		if ns.Announce then ns.Announce() end
 		if ns.RefreshUI then ns.RefreshUI() end
 	end
@@ -371,17 +447,19 @@ function ns.ReadRoster()
 	local roster, index, byGuid = {}, {}, {}
 	local n = GetNumGuildMembers and GetNumGuildMembers() or 0
 	for i = 1, n do
-		local name, rank, _, level, _, _, _, _, online, _, class, _, _, _, _, _, guid = GetGuildRosterInfo(i)
+		local name, rank, _, level, _, _, note, _, online, _, class, _, _, _, _, _, guid = GetGuildRosterInfo(i)
 		local key = ns.Key(name)
 		if key then
 			if Secret(guid) or type(guid) ~= "string" then guid = nil end
-			local e = { name = key, short = key, raw = name, level = level, class = class, online = online and true or false, rank = rank, guid = guid }
+			if Secret(note) or type(note) ~= "string" then note = nil end
+			local e = { name = key, short = key, raw = name, level = level, class = class, online = online and true or false, rank = rank, guid = guid, note = note }
 			roster[#roster + 1] = e
 			index[key] = e
 			if guid then byGuid[guid] = e end
 		end
 	end
 	ns.roster, ns.inRoster, ns.byGuid = roster, index, byGuid
+	ns.dataVersion = (ns.dataVersion or 0) + 1
 	-- records filed under a name the roster spells otherwise: moved to its row (by GUID)
 	local g = ns.Guild()
 	if g and #roster > 0 then
@@ -511,6 +589,16 @@ f:SetScript("OnEvent", function(_, event, ...)
 		GuildCraftersForeverDB = GuildCraftersForeverDB or {}
 		GuildCraftersForeverDB.guilds = GuildCraftersForeverDB.guilds or {}
 		GuildCraftersForeverDB.me = GuildCraftersForeverDB.me or {}
+		-- one random token per account: characters sharing it are the same player (alts)
+		if not GuildCraftersForeverDB.account then
+			GuildCraftersForeverDB.account = ("%04x%04x%04x%04x"):format(math.random(0, 65535), math.random(0, 65535),
+				math.random(0, 65535), math.random(0, 65535))
+		end
+		GuildCraftersForeverDB.opts = GuildCraftersForeverDB.opts or {}
+		for k, v in pairs(ns.DEFAULTS) do
+			if GuildCraftersForeverDB.opts[k] == nil then GuildCraftersForeverDB.opts[k] = v end
+		end
+		if ns.SetUpOptions then ns.SetUpOptions() end
 		for _, e in ipairs({ "SKILL_LINES_CHANGED", "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "NEW_RECIPE_LEARNED",
 			"TRAIT_CONFIG_UPDATED", "PLAYER_TALENT_UPDATE", "ACTIVE_TALENT_GROUP_CHANGED", "PLAYER_LEVEL_UP",
 			"GUILD_ROSTER_UPDATE", "PLAYER_GUILD_UPDATE" }) do

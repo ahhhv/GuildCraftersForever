@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.0
+
+### New: "Who crafts it?" on item tooltips
+- Item tooltips (bags, chat links, auction house…) show who in your guild can craft the item, online players first, and whether you can craft it too.
+- Recipe items (Patterns, Plans, Formulas…) show who in your guild already knows the recipe.
+- **Request it from the tooltip**: Alt+click the item to choose a guildmate and send them a request. The shortcut can be changed (Ctrl+Alt, Shift+Alt) or turned off in the options.
+
+### New: mains and alts
+- Characters of the same player are grouped under their main in the Professions and Talents lists ("Jami (+2 alts)"), with a button to show or hide the alts.
+- Characters with the addon on the same account are grouped automatically; for everyone else, a guild note like "alt de Jami" or "Jami alt" is enough.
+- `/gcraft main` makes the current character your main (otherwise it's your highest-level one).
+- A collapsed player shows the professions of all their characters.
+
+### New: options
+- Esc > Options > AddOns > **GuildCrafters Forever** (or `/gcraft options`): tooltip lines, request shortcut, **share my alts** (on by default; untick it to keep your alts private) and notice sound.
+
 ## 0.3.1
 
 ### New: recipe requests
