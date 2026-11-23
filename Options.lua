@@ -25,16 +25,15 @@ function ns.SetUpOptions()
 	Check("tooltip", L["Show who crafts items on tooltips"],
 		L["Item tooltips say who in your guild can craft them, and recipe items who already knows them."])
 
-	local shortcut = Settings.RegisterAddOnSetting(category, "GUILDCRAFTERSFOREVER_shortcut", "shortcut", opts, "string",
-		L["Shortcut to request an item"], ns.DEFAULTS.shortcut)
-	Settings.CreateDropdown(category, shortcut, function()
-		local c = Settings.CreateControlTextContainer()
-		c:Add("alt", "Alt + " .. L["click"])
-		c:Add("ctrlalt", "Ctrl + Alt + " .. L["click"])
-		c:Add("shiftalt", "Shift + Alt + " .. L["click"])
-		c:Add("none", L["None"])
-		return c:GetData()
-	end, L["Click an item with this in your bags, a chat link or the auction house to ask a guildmate to craft it."])
+	-- the shortcut: a button that opens the recorder (/gcraft shortcut does the same)
+	local ok = pcall(function()
+		local layout = SettingsPanel:GetLayout(category)
+		layout:AddInitializer(CreateSettingsButtonInitializer(L["Shortcut to request an item"], L["Record…"],
+			function() ns.RecordShortcut() end,
+			L["Use it on an item in your bags, a chat link or the auction house to ask a guildmate to craft it. Pick any combination of Alt, Ctrl and Shift with a mouse button."],
+			true))
+	end)
+	if not ok and ns.Log then ns.Log("options: no button for the shortcut; /gcraft shortcut") end
 
 	Check("shareAlts", L["Share my alts with the guild"],
 		L["Your characters with the addon show together under your main. Untick it to keep your alts private."],
@@ -51,4 +50,84 @@ end
 
 function ns.OpenOptions()
 	if category and Settings.OpenToCategory then Settings.OpenToCategory(category:GetID()) end
+end
+
+--------------------------------------------------------------------------------
+-- The shortcut recorder: click the box with the combination you want
+--------------------------------------------------------------------------------
+
+local recorder
+
+local function Warn(s)
+	if s == "SHIFT-LeftButton" then return L["Careful: Blizzard also uses Shift+click (it links the item in chat)."] end
+	if s == "CTRL-LeftButton" then return L["Careful: Blizzard also uses Ctrl+click (it shows the item on your character)."] end
+	return nil
+end
+
+function ns.RecordShortcut()
+	if not recorder then
+		local r = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
+		r:SetSize(380, 190)
+		r:SetPoint("CENTER", 0, 120)
+		r:SetFrameStrata("FULLSCREEN_DIALOG")
+		r:EnableMouse(true)
+		if r.SetBackdrop then
+			r:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+				edgeSize = 14, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
+			r:SetBackdropColor(0.05, 0.13, 0.08, 0.97)
+			r:SetBackdropBorderColor(0.75, 0.5, 0.25, 1)
+		end
+		r.text = r:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+		r.text:SetPoint("TOPLEFT", 16, -14)
+		r.text:SetPoint("TOPRIGHT", -16, -14)
+		r.text:SetText(L["Hold Alt, Ctrl and/or Shift and click the box with the mouse button you want."])
+		r.box = CreateFrame("Button", nil, r, "BackdropTemplate")
+		r.box:SetSize(320, 56)
+		r.box:SetPoint("TOP", 0, -50)
+		r.box:RegisterForClicks("AnyUp")
+		if r.box.SetBackdrop then
+			r.box:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+				edgeSize = 12, insets = { left = 2, right = 2, top = 2, bottom = 2 } })
+			r.box:SetBackdropColor(0.15, 0.15, 0.15, 1)
+			r.box:SetBackdropBorderColor(0.6, 0.6, 0.6, 1)
+		end
+		r.current = r.box:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+		r.current:SetPoint("CENTER")
+		r.msg = r:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+		r.msg:SetPoint("TOP", r.box, "BOTTOM", 0, -8)
+		r.msg:SetWidth(340)
+		r.box:SetScript("OnClick", function(_, button)
+			local s = ns.MakeShortcut(IsAltKeyDown(), IsControlKeyDown(), IsShiftKeyDown(), button)
+			if not s then
+				r.msg:SetText("|cffff6060" .. L["Hold at least one of Alt, Ctrl or Shift while you click."] .. "|r")
+				return
+			end
+			GuildCraftersForeverDB.opts.shortcut = s
+			r.current:SetText(ns.ShortcutText(s))
+			local warn = Warn(s)
+			r.msg:SetText(warn and ("|cffffd100" .. warn .. "|r") or ("|cff40ff40" .. L["Saved."] .. "|r"))
+			ns.Print(L["Shortcut to request an item: %s"]:format(ns.ShortcutText(s)))
+			if ns.RefreshUI then ns.RefreshUI() end
+		end)
+		r.off = CreateFrame("Button", nil, r, "UIPanelButtonTemplate")
+		r.off:SetSize(120, 22)
+		r.off:SetPoint("BOTTOMRIGHT", r, "BOTTOM", -6, 12)
+		r.off:SetText(L["Turn it off"])
+		r.off:SetScript("OnClick", function()
+			GuildCraftersForeverDB.opts.shortcut = "none"
+			r.current:SetText(L["None"])
+			r.msg:SetText(L["Saved."])
+			ns.Print(L["Shortcut to request an item: %s"]:format(L["None"]))
+		end)
+		r.close = CreateFrame("Button", nil, r, "UIPanelButtonTemplate")
+		r.close:SetSize(120, 22)
+		r.close:SetPoint("BOTTOMLEFT", r, "BOTTOM", 6, 12)
+		r.close:SetText(CLOSE or "Close")
+		r.close:SetScript("OnClick", function() r:Hide() end)
+		r:Hide()
+		recorder = r
+	end
+	recorder.current:SetText(ns.ShortcutText() or L["None"])
+	recorder.msg:SetText("")
+	recorder:Show()
 end

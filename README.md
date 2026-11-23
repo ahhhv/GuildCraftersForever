@@ -21,11 +21,15 @@ Download it from CurseForge (search for "GuildCrafters Forever", game version Fo
 
 ### "Who crafts it?" tooltips
 - Item tooltips show who in your guild can craft the item; recipe items show who already knows them.
-- **Alt+click** an item (configurable) to request it from a guildmate.
+- Use your shortcut on an item (Alt+click by default; record any combination) to request it from a guildmate.
 
 ### Guild board
 - Post what you need to the whole guild; whoever can craft it gets a notice, and the first to take it crafts it.
 - Don't want requests? Turn them off in the options: you still see the board.
+
+### Materials and ranking
+- Recipe tooltips show the materials you have and need, and who in the guild crafts or gathers what you're missing.
+- A ranking of the guild's crafters: requests and board posts crafted, this month and all time.
 
 ### Mains and alts
 - Each player's characters grouped under their main, automatically (same account) or from the guild note ("alt de Jami").
@@ -42,6 +46,7 @@ Download it from CurseForge (search for "GuildCrafters Forever", game version Fo
 | `/gcraft requests` | Requests tab |
 | `/gcraft main` | Make this character your main |
 | `/gcraft options` | Open the options |
+| `/gcraft shortcut` | Record your shortcut to request items |
 | `/gcraft send` | Send your data again |
 | `/gcraft prune` | Forget members who left the guild |
 | `/gcraft status` | Sync diagnostics (for bug reports) |

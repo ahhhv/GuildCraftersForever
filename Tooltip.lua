@@ -74,7 +74,41 @@ local function Names(list)
 	return table.concat(parts, ", ")
 end
 
-local SHORTCUT_TEXT = { alt = "Alt", ctrlalt = "Ctrl+Alt", shiftalt = "Shift+Alt" }
+--------------------------------------------------------------------------------
+-- The shortcut, as the player recorded it: "ALT-CTRL-SHIFT-<mouse button>" (any modifiers, in that
+-- order, at least one) or "none". Older versions saved "alt", "ctrlalt" or "shiftalt".
+--------------------------------------------------------------------------------
+
+local LEGACY = { alt = "ALT-LeftButton", ctrlalt = "ALT-CTRL-LeftButton", shiftalt = "ALT-SHIFT-LeftButton" }
+local BUTTON_TEXT = { LeftButton = "click", RightButton = "right-click", MiddleButton = "middle-click",
+	Button4 = "button 4", Button5 = "button 5" }
+
+-- { alt, ctrl, shift, button } or nil when there's none
+function ns.ParseShortcut(s)
+	s = LEGACY[s] or s
+	if type(s) ~= "string" or s == "none" then return nil end
+	local k = { button = s:match("([%w]+)$") }
+	k.alt, k.ctrl, k.shift = s:find("ALT-", 1, true) ~= nil, s:find("CTRL-", 1, true) ~= nil, s:find("SHIFT-", 1, true) ~= nil
+	if not (k.button and BUTTON_TEXT[k.button] and (k.alt or k.ctrl or k.shift)) then return nil end
+	return k
+end
+
+function ns.MakeShortcut(alt, ctrl, shift, button)
+	if not (alt or ctrl or shift) or not BUTTON_TEXT[button] then return nil end
+	return (alt and "ALT-" or "") .. (ctrl and "CTRL-" or "") .. (shift and "SHIFT-" or "") .. button
+end
+
+-- "Ctrl+Alt+right-click", or nil when there's none
+function ns.ShortcutText(s)
+	local k = ns.ParseShortcut(s or ns.Opt("shortcut"))
+	if not k then return nil end
+	local parts = {}
+	if k.ctrl then parts[#parts + 1] = "Ctrl" end
+	if k.alt then parts[#parts + 1] = "Alt" end
+	if k.shift then parts[#parts + 1] = "Shift" end
+	parts[#parts + 1] = L[BUTTON_TEXT[k.button]]
+	return table.concat(parts, "+")
+end
 
 local function AddLines(tooltip, itemID, itemName)
 	if not (ns.Opt("tooltip") and ns.Guild()) then return end
@@ -93,11 +127,11 @@ local function AddLines(tooltip, itemID, itemName)
 		if #list > 0 then
 			head(L["Crafted in your guild by:"])
 			tooltip:AddLine(Names(list), 1, 1, 1, true)
-			local key = SHORTCUT_TEXT[ns.Opt("shortcut")]
+			local key = ns.ShortcutText()
 			if key then
 				local open = false
 				for _, c in ipairs(list) do if not c.closed then open = true break end end
-				tooltip:AddLine((open and L["%s+click: request it from the guild"] or L["%s+click: post it on the guild board"]):format(key), 0.5, 0.75, 1)
+				tooltip:AddLine((open and L["%s: request it from the guild"] or L["%s: post it on the guild board"]):format(key), 0.5, 0.75, 1)
 			end
 		end
 		if IKnow(recipes) then
@@ -141,11 +175,12 @@ end
 --------------------------------------------------------------------------------
 
 local function ShortcutDown()
-	local s = ns.Opt("shortcut")
-	if s == "alt" then return IsAltKeyDown() and not IsControlKeyDown() and not IsShiftKeyDown() end
-	if s == "ctrlalt" then return IsAltKeyDown() and IsControlKeyDown() and not IsShiftKeyDown() end
-	if s == "shiftalt" then return IsAltKeyDown() and IsShiftKeyDown() and not IsControlKeyDown() end
-	return false
+	local k = ns.ParseShortcut(ns.Opt("shortcut"))
+	if not k then return false end
+	if (IsAltKeyDown() and true or false) ~= k.alt or (IsControlKeyDown() and true or false) ~= k.ctrl
+		or (IsShiftKeyDown() and true or false) ~= k.shift then return false end
+	local button = GetMouseButtonClicked and GetMouseButtonClicked()
+	return button == nil or button == k.button
 end
 
 function ns.RequestItem(itemID)

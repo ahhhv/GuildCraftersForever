@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0-beta3
+
+### New: your own shortcut
+- Pick any combination of Alt, Ctrl and Shift with any mouse button to request an item (Ctrl+right-click, Shift+Alt+click…): Options > **Shortcut to request an item** > Record…, or `/gcraft shortcut`.
+
+### New: materials calculator
+- Recipe tooltips (Professions and Requests tabs), the request confirmation and the crafter picker show each material as **you have / needed**.
+- For what you're missing: who in the guild crafts it (Bolt of Linen Cloth: the tailors) and who gathers it (herbs, ore, leather, enchanting materials), online first.
+
+### New: guild crafters ranking
+- A new section in the Requests tab: requests and board posts each player has crafted, this month and all time. Alts count for their main.
+
 ## 0.4.0-beta2
 
 ### New: the guild board

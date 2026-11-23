@@ -51,6 +51,31 @@ local TEXT_MAX = 120
 local FINAL = { declined = true, done = true, cancelled = true, expired = true }
 R.FINAL = FINAL
 
+--------------------------------------------------------------------------------
+-- Activity: each crafter counts the requests and board posts they finish, and
+-- shares the count in their record (rec.cr = { a = all time, m = "YYYY-MM",
+-- n = that month }), so every client shows the same ranking.
+--------------------------------------------------------------------------------
+
+local function MonthKey() return date("%Y-%m", GetServerTime()) end
+R.MonthKey = MonthKey
+
+local function CountDone(r)
+	local db = GuildCraftersForeverDB
+	if not (db and r and r.st == "done" and r.to == ns.Me()) then return end
+	db.counted = db.counted or {}
+	if db.counted[r.id] then return end
+	db.counted[r.id] = GetServerTime()
+	ns.Rescan("stats", function(rec)
+		local month = MonthKey()
+		local cr = rec.cr or { a = 0, m = month, n = 0 }
+		if cr.m ~= month then cr.m, cr.n = month, 0 end
+		cr.a, cr.n = cr.a + 1, cr.n + 1
+		rec.cr = cr
+	end)
+end
+R.CountDone = CountDone
+
 local lastHeard = {}           -- id -> GetTime() a copy was last heard or sent (relays skip a fresh one)
 
 local function Store()
@@ -200,6 +225,7 @@ function R.Receive(id, from, to, recipe, t, st, u)
 	elseif r.from == me and before ~= st and (st == "accepted" or st == "declined" or st == "done") then
 		if ns.NotifyAnswer then ns.NotifyAnswer(r) end
 	end
+	CountDone(r)
 	if ns.RefreshUI then ns.RefreshUI() end
 end
 
@@ -252,6 +278,7 @@ function R.ReceiveBoard(id, from, to, recipe, t, st, u, text)
 	elseif beforeTo == me and to ~= me and before == "taken" and st == "taken" then
 		ns.Print(L["%s took the board post first: %s"]:format(to, R.Title(r)))
 	end
+	CountDone(r)
 	if ns.RefreshUI then ns.RefreshUI() end
 end
 
@@ -339,6 +366,7 @@ function R.Set(id, st)
 		if not ok then return end
 		r.st, r.u = st, math.max(GetServerTime(), (r.u or 0) + 1)
 		Broadcast(r)
+		CountDone(r)
 		if ns.RefreshUI then ns.RefreshUI() end
 		return
 	end
@@ -347,6 +375,7 @@ function R.Set(id, st)
 	if not (crafter or requester) then return end
 	r.st, r.u = st, math.max(GetServerTime(), (r.u or 0) + 1)
 	Broadcast(r)
+	CountDone(r)
 	if ns.RefreshUI then ns.RefreshUI() end
 end
 
@@ -554,6 +583,12 @@ end)
 -- The login summary, once the guild has had a moment to send us what we missed
 C_Timer.After(20, function()
 	if ns.disabled or not ns.Guild() then return end
+	-- what I finished while this version wasn't counting yet (the last week's requests), and old counted ids
+	for _, r in pairs(Store() or {}) do CountDone(r) end
+	local db, now = GuildCraftersForeverDB, GetServerTime()
+	for id, at in pairs(db.counted or {}) do
+		if now - at > 60 * 86400 then db.counted[id] = nil end
+	end
 	local n, c = R.PendingForMe(), R.ToCraft()
 	if n > 0 then ns.Print(L["You have %d recipe requests waiting for an answer. /gcraft requests"]:format(n)) end
 	if c > 0 then ns.Print(L["You have %d accepted requests to craft."]:format(c)) end

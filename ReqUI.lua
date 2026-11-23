@@ -83,6 +83,8 @@ end
 function ns.AskRequest(to, recipe)
 	local text = L["Ask %s to craft %s for you?\n\nThey'll get a notice (when they log in, if they're offline), and next time you open a mailbox the addon will have a letter ready for them."]
 		:format("|cffffd100" .. to .. "|r", "|cffffffff" .. ns.RecipeName(recipe) .. "|r")
+	local mats = ns.MaterialsText and ns.MaterialsText(recipe) or ""
+	if mats ~= "" then text = text .. "\n\n" .. mats end
 	if not ns.TakesRequests(to) then
 		ns.Print(L["%s doesn't take requests. You can post it on the guild board instead."]:format(to))
 		return
@@ -113,8 +115,11 @@ end
 
 -- A recipe to the board, after a confirmation
 function ns.ConfirmPost(recipe)
-	Confirm(L["Post %s on the guild board?\n\nEveryone in the guild with the addon will see it, and those who can craft it get a notice. The first to take it crafts it."]
-		:format("|cffffffff" .. ns.RecipeName(recipe) .. "|r"), L["Post"], function() Posted(ns.Req.Post(recipe)) end)
+	local text = L["Post %s on the guild board?\n\nEveryone in the guild with the addon will see it, and those who can craft it get a notice. The first to take it crafts it."]
+		:format("|cffffffff" .. ns.RecipeName(recipe) .. "|r")
+	local mats = ns.MaterialsText and ns.MaterialsText(recipe) or ""
+	if mats ~= "" then text = text .. "\n\n" .. mats end
+	Confirm(text, L["Post"], function() Posted(ns.Req.Post(recipe)) end)
 end
 
 -- Free text to the board: our own little window with a text box
@@ -136,7 +141,6 @@ function ns.PostText()
 		p.text:SetPoint("TOPLEFT", 18, -16)
 		p.text:SetPoint("TOPRIGHT", -18, -16)
 		p.text:SetJustifyH("LEFT")
-		p.text:SetText(L["What are you looking for? (for an item someone can craft, Alt+click it instead)"])
 		p.edit = CreateFrame("EditBox", nil, p, "InputBoxTemplate")
 		p.edit:SetSize(370, 24)
 		p.edit:SetPoint("TOP", 0, -58)
@@ -163,6 +167,8 @@ function ns.PostText()
 		p:Hide()
 		poster = p
 	end
+	poster.text:SetText(L["What are you looking for? (for an item someone can craft, use your shortcut on it instead: %s)"]
+		:format(ns.ShortcutText() or L["none, see the options"]))
 	poster.edit:SetText("")
 	poster:Show()
 	poster.edit:SetFocus()
@@ -206,6 +212,9 @@ function ns.ChooseCrafter(itemID, all)
 	else
 		p.text:SetText(L["Nobody who crafts %s takes requests right now. You can post it on the guild board."]:format("|cffffffff" .. itemName .. "|r"))
 	end
+	local first = (all[1] and all[1].recipe) or (ns.RecipesForItem(itemID) or {})[1]
+	local mats = first and ns.MaterialsText and ns.MaterialsText(first) or ""
+	if mats ~= "" then p.text:SetText(p.text:GetText() .. "\n\n" .. mats) end
 	p.text:SetJustifyH("CENTER")
 	local y = -48 - math.max(0, (p.text:GetStringHeight() or 14) - 14)
 	for i = 1, math.min(#list, 8) do
@@ -411,6 +420,7 @@ local function InitRow(b, d)
 		end)
 		return
 	end
+	if d.rank then return InitRankRow(b, d) end
 	local r = d.r
 	local me = ns.Me()
 	local mine = r.from == me
@@ -447,6 +457,50 @@ local function InitRow(b, d)
 		local other = mine and r.to or r.from
 		if button == "RightButton" and ns.Whisper then ns.Whisper(other)
 		elseif IsShiftKeyDown() and ns.RecipeLinkFor then ns.InsertLinkFor(ns.RecipeLinkFor(r.recipe)) end
+	end)
+end
+
+-- The ranking: requests and board posts finished as the crafter, by player (alts count for their main),
+-- this month first: { { main, month, total, online } }
+function ns.Ranking()
+	local g, month = ns.Guild(), ns.Req.MonthKey()
+	local by, out = {}, {}
+	for key, rec in pairs(g and g.members or {}) do
+		local cr = rec.cr
+		if cr and (cr.a or 0) > 0 and (#ns.roster == 0 or ns.inRoster[key]) then
+			local main = ns.MainOf(key)
+			local e = by[main]
+			if not e then
+				e = { main = main, month = 0, total = 0, online = false }
+				by[main] = e
+				out[#out + 1] = e
+			end
+			e.total = e.total + cr.a
+			if cr.m == month then e.month = e.month + (cr.n or 0) end
+			local r = ns.inRoster[key]
+			if r and r.online then e.online = true end
+		end
+	end
+	table.sort(out, function(a, b)
+		if a.month ~= b.month then return a.month > b.month end
+		if a.total ~= b.total then return a.total > b.total end
+		return a.main < b.main
+	end)
+	return out
+end
+
+local MEDAL = { "|cffffd100", "|cffc0c0c0", "|cffcd7f32" }
+
+local function InitRankRow(b, d)
+	local e = d.rank
+	local color = MEDAL[d.pos] or "|cffffffff"
+	b.left:SetText(("%s%d.|r  %s%s"):format(color, d.pos, e.main, e.online and " |cff40ff40•|r" or ""))
+	b.left:SetTextColor(1, 1, 1)
+	b.sub:SetText(L["This month: %d  ·  All time: %d"]:format(e.month, e.total))
+	b.sub:SetTextColor(0.85, 0.85, 0.85)
+	Place(b, 0)
+	b:SetScript("OnClick", function(_, button)
+		if button == "RightButton" and ns.Whisper then ns.Whisper(e.main) end
 	end)
 end
 
@@ -514,7 +568,7 @@ function ns.BuildReqPanel(MakePanel, MakeList, _, RecipeTooltip)
 	local hint = p:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
 	hint:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -4)
 	hint:SetJustifyH("LEFT")
-	hint:SetText(L["Ask a crafter with Request in the Professions tab, or Alt+click an item. Anything else, post it on the guild board. Requests reach people even when offline and wait 7 days."])
+	req.hint = hint
 	-- Clear history: a second click within 4 seconds confirms
 	req.clear = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
 	req.clear:SetSize(150, 22)
@@ -549,6 +603,8 @@ end
 
 function ns.RefreshReq()
 	if not (req.list and ns.Req) then return end
+	req.hint:SetText(L["Ask a crafter with Request in the Professions tab, or with your shortcut on an item (%s). Anything else, post it on the guild board. Requests reach people even when offline and wait 7 days."]
+		:format(ns.ShortcutText() or L["none, see the options"]))
 	local me = ns.Me()
 	local forMe, mine, board = {}, {}, {}
 	for _, r in ipairs(ns.Req.List()) do
@@ -571,6 +627,12 @@ function ns.RefreshReq()
 		hint = #board == 0 and L["Nothing for now."] or (not ns.Opt("acceptRequests") and L["You don't take requests (options)"]) or nil }
 	if not req.collapsed.board then
 		for _, d in ipairs(board) do rows[#rows + 1] = d end
+	end
+	local ranking = ns.Ranking()
+	rows[#rows + 1] = { header = true, key = "rank", text = L["Guild crafters ranking"],
+		hint = #ranking == 0 and L["Nobody has finished a request yet."] or L["Requests and board posts crafted"] }
+	if not req.collapsed.rank then
+		for i = 1, math.min(#ranking, 10) do rows[#rows + 1] = { rank = ranking[i], pos = i } end
 	end
 	req.list:Set(rows)
 	req.clear:SetEnabled(ns.Req.FinishedCount() > 0)

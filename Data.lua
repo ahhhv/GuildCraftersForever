@@ -44,7 +44,7 @@ ns.PROF_ICONS = {
 -- Options (Options.lua shows them in Blizzard's settings)
 ns.DEFAULTS = {
 	tooltip = true,        -- "who crafts it" lines on item tooltips
-	shortcut = "alt",      -- modified click on an item to request it: "alt", "ctrlalt", "shiftalt", "none"
+	shortcut = "ALT-LeftButton", -- the click on an item that requests it: "ALT-CTRL-SHIFT-<mouse button>" (recorded), or "none"
 	shareAlts = true,      -- tell the guild which characters are this player's
 	sound = true,          -- sound with the notices
 	acceptRequests = true, -- guildmates can send me requests (and board posts I can craft notify me)
@@ -414,10 +414,12 @@ function ns.MyRecord()
 	return db.me[key]
 end
 
--- Rescan what `what` says ("prof", "recipes", "talents", "all"); a change bumps the stamp and tells the guild
-function ns.Rescan(what)
+-- Rescan what `what` says ("prof", "recipes", "talents", "all"), after `change(rec)` if given; a change bumps
+-- the stamp and tells the guild
+function ns.Rescan(what, change)
 	local rec = ns.MyRecord()
 	local before = Fingerprint(rec)
+	if change then change(rec) end
 	local _, class = UnitClass("player")
 	rec.v, rec.c, rec.l, rec.g = ns.PROTOCOL, class, UnitLevel("player"), UnitGUID and UnitGUID("player") or nil
 	-- alts: the account's token and the main picked with /gcraft main, unless the player keeps them private

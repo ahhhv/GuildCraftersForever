@@ -473,7 +473,9 @@ local function RecipeTooltip(owner, id)
 	local ok = pcall(GameTooltip.SetSpellByID, GameTooltip, id)
 	if not ok then GameTooltip:AddLine(ns.RecipeName(id), 1, 1, 1) end
 	local s = ns.Schematic(id)
-	if s and #s.reagents > 0 then
+	if ns.AddMaterialLines and ns.AddMaterialLines(GameTooltip, id) then
+		-- have/needed and who can get what's missing
+	elseif s and #s.reagents > 0 then
 		GameTooltip:AddLine(" ")
 		GameTooltip:AddLine(L["Reagents:"], 1, 0.82, 0)
 		for _, r in ipairs(s.reagents) do
@@ -1010,6 +1012,8 @@ local function Slash(msg)
 		GuildCraftersForeverDB.main = ns.Me()
 		ns.Rescan("all")
 		ns.Print(L["%s is now your main: your other characters will show as its alts."]:format(ns.Me()))
+	elseif cmd == "atajo" or cmd == "shortcut" then
+		if ns.RecordShortcut then ns.RecordShortcut() end
 	elseif cmd == "opciones" or cmd == "options" or cmd == "config" then
 		if ns.OpenOptions then ns.OpenOptions() end
 	elseif cmd == "estado" or cmd == "status" then
@@ -1033,6 +1037,7 @@ local function Slash(msg)
 		ns.Print("  /gcraft solicitudes - " .. L["Requests"])
 		ns.Print("  /gcraft main - " .. L["make this character your main"])
 		ns.Print("  /gcraft opciones - " .. L["Options"])
+		ns.Print("  /gcraft atajo - " .. L["record your shortcut to request items"])
 		ns.Print("  /gcraft enviar - " .. L["send your data again"])
 		ns.Print("  /gcraft limpiar - " .. L["forget data of members who left the guild"])
 		ns.Print("  /gcraft estado - diagnóstico de la sincronización")

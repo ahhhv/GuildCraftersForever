@@ -24,4 +24,5 @@ Requests.lua
 UI.lua
 ReqUI.lua
 Tooltip.lua
+Materials.lua
 Options.lua
