@@ -224,6 +224,9 @@ function R.Receive(id, from, to, recipe, t, st, u)
 		if ns.NotifyRequest then ns.NotifyRequest(r) end
 	elseif r.from == me and before ~= st and (st == "accepted" or st == "declined" or st == "done") then
 		if ns.NotifyAnswer then ns.NotifyAnswer(r) end
+	elseif r.to == me and st == "cancelled" and (before == "open" or before == "accepted") then
+		-- the requester took it back: the crafter should know, above all if they'd accepted it
+		if ns.NotifyCancelled then ns.NotifyCancelled(r, before) end
 	end
 	CountDone(r)
 	if ns.RefreshUI then ns.RefreshUI() end
@@ -277,6 +280,8 @@ function R.ReceiveBoard(id, from, to, recipe, t, st, u, text)
 		if ns.NotifyBoardAnswer then ns.NotifyBoardAnswer(r) end
 	elseif beforeTo == me and to ~= me and before == "taken" and st == "taken" then
 		ns.Print(L["%s took the board post first: %s"]:format(to, R.Title(r)))
+	elseif beforeTo == me and before == "taken" and st == "cancelled" then
+		if ns.NotifyCancelled then ns.NotifyCancelled(r, before) end
 	end
 	CountDone(r)
 	if ns.RefreshUI then ns.RefreshUI() end
@@ -392,7 +397,9 @@ function R.MemberOnline(key)
 	local me = ns.Me()
 	if key == me then return end
 	for _, r in pairs(Store() or {}) do
-		if r.board and not FINAL[r.st] and not (GetServerTime() - (r.t or 0) > EXPIRE and r.st == "open") then
+		-- final states are relayed for a week too: whoever was offline must learn of a cancellation
+		local live = not FINAL[r.st] or GetServerTime() - (r.u or 0) < EXPIRE
+		if r.board and live and not (GetServerTime() - (r.t or 0) > EXPIRE and r.st == "open") then
 			-- every member should see the board: its poster (or taker) sends it, else anyone, whoever goes first
 			local side = r.from == me or r.to == me
 			if side or not (Online(r.from) or (r.to and Online(r.to))) then
@@ -400,10 +407,10 @@ function R.MemberOnline(key)
 				local wait = side and (0.5 + math.random() * 2) or (RELAY_WAIT[1] + math.random() * (RELAY_WAIT[2] - RELAY_WAIT[1]))
 				C_Timer.After(wait, function()
 					if (lastHeard[r.id] or 0) > asked then return end
-					if not FINAL[r.st] then Broadcast(r) end
+					Broadcast(r)
 				end)
 			end
-		elseif not r.board and not FINAL[r.st] and (r.to == key or r.from == key) then
+		elseif not r.board and live and (r.to == key or r.from == key) then
 			local side = r.from == me or r.to == me
 			local otherSide = (r.from == key) and r.to or r.from
 			-- the sides send at once; anyone else only when the other side is offline too, and only if nobody did first
@@ -412,7 +419,7 @@ function R.MemberOnline(key)
 				local wait = side and (0.5 + math.random() * 2) or (RELAY_WAIT[1] + math.random() * (RELAY_WAIT[2] - RELAY_WAIT[1]))
 				C_Timer.After(wait, function()
 					if not side and (lastHeard[r.id] or 0) > asked then return end
-					if not FINAL[r.st] then Broadcast(r) end
+					Broadcast(r)
 				end)
 			end
 		end

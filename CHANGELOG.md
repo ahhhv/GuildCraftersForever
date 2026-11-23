@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1
+
+### Fixes
+- Cancelling a request now tells the crafter, in chat and on screen (above all if they had accepted it). The same for a board post someone had taken.
+- A crafter who was offline when a request was cancelled now learns of it when they log in, instead of keeping it as accepted forever.
+
 ## 0.4.0
 
 ### New: "there's a new version" notice

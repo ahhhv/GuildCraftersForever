@@ -383,6 +383,23 @@ function ns.NotifyAnswer(r)
 	ShowToast(L["Recipe request"], line, ns.RecipeIcon(r.recipe), { L["View"], OpenRequests })
 end
 
+-- The requester cancelled something I'd been asked for (or had accepted / taken)
+function ns.NotifyCancelled(r, before)
+	local title = ns.Req.Title(r)
+	local line
+	if r.board then
+		line = L["%s cancelled the board post you took: %s"]:format(r.from, title)
+	elseif before == "accepted" then
+		line = L["%s cancelled the request you'd accepted: %s"]:format(r.from, title)
+	else
+		line = L["%s cancelled their request: %s"]:format(r.from, title)
+	end
+	ns.Print(line)
+	ShowToast(r.board and L["Guild board"] or L["Recipe request"], line,
+		r.recipe > 0 and ns.RecipeIcon(r.recipe) or BOARD_ICON, { L["View"], OpenRequests })
+	if ns.RefreshUI then ns.RefreshUI() end
+end
+
 --------------------------------------------------------------------------------
 -- The Requests tab
 --------------------------------------------------------------------------------

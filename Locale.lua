@@ -188,5 +188,8 @@ if locale == "esES" or locale == "esMX" then
 	L["newer"] = "más nueva"
 	L["Older than 0.4.0-beta4 (no version shared): %s"] = "Anterior a la 0.4.0-beta4 (no comparten versión): %s"
 	L["which version each member has"] = "qué versión tiene cada miembro"
+	L["%s cancelled the board post you took: %s"] = "%s ha cancelado el pedido del tablón que te quedaste: %s"
+	L["%s cancelled the request you'd accepted: %s"] = "%s ha cancelado la solicitud que habías aceptado: %s"
+	L["%s cancelled their request: %s"] = "%s ha cancelado su solicitud: %s"
 	L["The old \"GuildCrafters\" folder is still installed: delete Interface\\AddOns\\GuildCrafters and restart the game. GuildCrafters Forever stays off until then."] = "Sigue instalada la carpeta antigua «GuildCrafters»: borra Interface\\AddOns\\GuildCrafters y reinicia el juego. GuildCrafters Forever no se activará hasta entonces."
 end
