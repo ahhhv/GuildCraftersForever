@@ -1,8 +1,8 @@
 # Publishes the addon to CurseForge (and as a GitHub release) automatically.
 #
 # The version comes from the first "## x.y.z" heading of CHANGELOG.md. When a push to
-# main brings a version that has no tag yet, this workflow tags the commit
-# ("v" + version) and packages it:
+# main brings a version that has no tag yet, the "tag" job tags the commit
+# ("v" + version) and starts this workflow again on that tag, which packages it:
 #   ## 0.4.0         -> Release
 #   ## 0.4.0-beta1   -> Beta
 #   ## 0.4.0-alpha1  -> Alpha
@@ -18,7 +18,39 @@ on:
   workflow_dispatch:
 
 jobs:
-  release:
+  tag:
+    if: github.ref_type == 'branch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Tag a new version from CHANGELOG.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ver=$(grep -m1 -oP '^##\s+v?\K[0-9]+\.[0-9]+(\.[0-9]+)?(-[A-Za-z0-9.]+)?' CHANGELOG.md || true)
+          if [ -z "$ver" ]; then
+            echo "No version heading in CHANGELOG.md; nothing to publish."
+            exit 0
+          fi
+          tag="v$ver"
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "$tag already exists; nothing to do."
+            exit 0
+          fi
+          git tag "$tag"
+          git push origin "$tag"
+          gh workflow run release.yml --ref "$tag"
+          echo "Tagged $tag and started its release."
+
+  package:
+    if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -31,30 +63,5 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Tag a new version from CHANGELOG.md
-        id: version
-        run: |
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            echo "publish=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          ver=$(grep -m1 -oP '^##\s+v?\K[0-9]+\.[0-9]+(\.[0-9]+)?(-[A-Za-z0-9.]+)?' CHANGELOG.md || true)
-          if [ -z "$ver" ]; then
-            echo "No version heading in CHANGELOG.md; nothing to publish."
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          tag="v$ver"
-          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
-            echo "$tag is already published; nothing to do."
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          git tag "$tag"
-          git push origin "$tag"
-          echo "Tagged $tag"
-          echo "publish=true" >> "$GITHUB_OUTPUT"
-
       - name: Package and upload
-        if: steps.version.outputs.publish == 'true'
         uses: BigWigsMods/packager@v2
