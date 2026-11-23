@@ -1,13 +1,11 @@
 # Changelog
 
-## 0.4.0-beta4
+## 0.4.0
 
 ### New: "there's a new version" notice
 - When someone in your guild runs a newer release of the addon, you get a notice in chat and on screen (once per session) telling you to update. Betas never trigger it.
 - `/gcraft versions` lists which version each member has.
 - Works from this version on: older versions don't share theirs.
-
-## 0.4.0-beta3
 
 ### New: your own shortcut
 - Pick any combination of Alt, Ctrl and Shift with any mouse button to request an item (Ctrl+right-click, Shift+Alt+click…): Options > **Shortcut to request an item** > Record…, or `/gcraft shortcut`.
@@ -19,8 +17,6 @@
 ### New: guild crafters ranking
 - A new section in the Requests tab: requests and board posts each player has crafted, this month and all time. Alts count for their main.
 
-## 0.4.0-beta2
-
 ### New: the guild board
 - Post what you need to the whole guild instead of one crafter: an item someone can craft, or free text ("looking for 20 Linen Cloth").
 - Guildmates who can craft it get a notice; everyone with the addon sees the post in the Requests tab, under **Guild board**. The first to press **Take it** crafts it, and the mailbox helper takes care of the materials and the item as with any request.
@@ -29,8 +25,6 @@
 
 ### New: turn requests off
 - Options > **Take recipe requests**: untick it and nobody can send you requests, and board posts don't notify you. You still show as a crafter (marked "no requests") and still see the board.
-
-## 0.4.0-beta1
 
 ### New: "Who crafts it?" on item tooltips
 - Item tooltips (bags, chat links, auction house…) show who in your guild can craft the item, online players first, and whether you can craft it too.
