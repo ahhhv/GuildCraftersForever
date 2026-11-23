@@ -4,6 +4,8 @@
 #   v0.4.0-alpha1  -> Alpha
 # The game version (WoW: Forever 1.60.x) comes from the .toc's "## Interface: 16xxx".
 # Needs the repository secret CF_API_KEY (a CurseForge API token).
+# Tags can be pushed with git or made from GitHub's "Draft a new release" page; the
+# packager uploads to CurseForge only (the GitHub release, if any, is yours).
 name: Package and release
 
 on:
@@ -15,10 +17,9 @@ jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     env:
       CF_API_KEY: ${{ secrets.CF_API_KEY }}
-      GITHUB_OAUTH: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Check out the code
         uses: actions/checkout@v4
