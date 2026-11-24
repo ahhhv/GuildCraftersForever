@@ -191,5 +191,6 @@ if locale == "esES" or locale == "esMX" then
 	L["%s cancelled the board post you took: %s"] = "%s ha cancelado el pedido del tablón que te quedaste: %s"
 	L["%s cancelled the request you'd accepted: %s"] = "%s ha cancelado la solicitud que habías aceptado: %s"
 	L["%s cancelled their request: %s"] = "%s ha cancelado su solicitud: %s"
+	L["View (press J)"] = "Ver (pulsa J)"
 	L["The old \"GuildCrafters\" folder is still installed: delete Interface\\AddOns\\GuildCrafters and restart the game. GuildCrafters Forever stays off until then."] = "Sigue instalada la carpeta antigua «GuildCrafters»: borra Interface\\AddOns\\GuildCrafters y reinicia el juego. GuildCrafters Forever no se activará hasta entonces."
 end

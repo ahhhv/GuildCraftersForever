@@ -306,6 +306,20 @@ local function Toast()
 	return t
 end
 
+-- The "View" button can't open the guild window (it would taint it): with the window closed it says
+-- "View (press J)", and pressing J then lands on the Requests tab
+local function GuildOpen()
+	return CommunitiesFrame and CommunitiesFrame:IsShown() and true or false
+end
+
+local function Label(b)
+	local text = b.view and (GuildOpen() and L["View"] or L["View (press J)"]) or b.label
+	if b:GetText() ~= text then
+		b:SetText(text)
+		b:SetWidth(math.max(80, (b:GetTextWidth() or 0) + 24))
+	end
+end
+
 local function ShowToast(title, text, icon, b1, b2)
 	local t = Toast()
 	t.title:SetText(title)
@@ -314,7 +328,9 @@ local function ShowToast(title, text, icon, b1, b2)
 	for i, spec in ipairs({ b1 or false, b2 or false }) do
 		local b = (i == 1) and t.b1 or t.b2
 		if spec then
-			b:SetText(spec[1])
+			b.label, b.view = spec[1], spec[1] == L["View"]
+			b:SetText("")
+			Label(b)
 			b:SetScript("OnClick", function() t:Hide() spec[2]() end)
 			b:Show()
 		else
@@ -322,6 +338,15 @@ local function ShowToast(title, text, icon, b1, b2)
 		end
 	end
 	t.shownAt = GetTime()
+	-- the window may open or close while the notice is up
+	local tick = 0
+	t:SetScript("OnUpdate", function(_, elapsed)
+		tick = tick + elapsed
+		if tick < 0.25 then return end
+		tick = 0
+		if t.b1:IsShown() then Label(t.b1) end
+		if t.b2:IsShown() then Label(t.b2) end
+	end)
 	t:Show()
 	Sound()
 	C_Timer.After(25, function()

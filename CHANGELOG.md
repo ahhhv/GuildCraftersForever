@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.2
+
+### Improvements
+- The **View** button on notices says **View (press J)** while the guild window is closed: addons can't open it without causing errors, so press J and it opens on the Requests tab.
+
 ## 0.4.1
 
 ### Fixes
