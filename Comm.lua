@@ -183,9 +183,17 @@ local function Received(sender, rec)
 		ns.Log("descartado de " .. sender .. (rec and " (sin guild)" or " (registro no válido)"))
 		return
 	end
-	-- its roster row by GUID, whatever form the sender's name came in
+	-- its roster row by GUID, whatever form the sender's name came in: only when that row is the sender
+	-- (a record carrying someone else's GUID must not overwrite theirs)
 	local e = rec.g and ns.byGuid[rec.g]
-	if e then sender = e.name end
+	if e then
+		if ns.SameCharacter(sender, e) then
+			sender = e.name
+		else
+			ns.Log(("%s envía un GUID que no es suyo: ignorado"):format(sender))
+			rec.g = nil
+		end
+	end
 	local had = g.members[sender]
 	if had and (had.t or 0) > rec.t then return end
 	g.members[sender] = rec
@@ -227,20 +235,22 @@ local function OnMessage(text, channel, rawSender)
 	if ns.Secret(text) or ns.Secret(rawSender) then return end
 	local sender = ns.Key(rawSender)
 	if not sender or sender == ns.Me() then return end
+	-- requests and posts come to the guild, or whispered by a guildmate to whoever just came online
+	local fromGuild = channel == "GUILD" or (channel == "WHISPER" and ns.inRoster[sender] ~= nil)
 	if text:sub(1, 2) == "O" .. SEP then
 		ns.stats.got = ns.stats.got + 1
 		ns.Log(("<- O %s (%s)"):format(rawSender, channel or "?"))
-		if channel == "GUILD" and ns.Req then ns.Req.Receive(select(2, strsplit(SEP, text, 8))) end
+		if fromGuild and ns.Req then ns.Req.Receive(select(2, strsplit(SEP, text, 8))) end
 		return
 	end
 	if text:sub(1, 2) == "G" .. SEP then
-		if channel == "GUILD" and ns.Req then ns.Req.ReceiveGold(select(2, strsplit(SEP, text, 3))) end
+		if fromGuild and ns.Req then ns.Req.ReceiveGold(select(2, strsplit(SEP, text, 3))) end
 		return
 	end
 	if text:sub(1, 2) == "B" .. SEP then
 		ns.stats.got = ns.stats.got + 1
 		ns.Log(("<- B %s (%s)"):format(rawSender, channel or "?"))
-		if channel == "GUILD" and ns.Req then ns.Req.ReceiveBoard(select(2, strsplit(SEP, text, 9))) end
+		if fromGuild and ns.Req then ns.Req.ReceiveBoard(select(2, strsplit(SEP, text, 9))) end
 		return
 	end
 	local kind, a, b, c, d = strsplit(SEP, text, 5)

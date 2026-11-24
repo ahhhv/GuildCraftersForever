@@ -206,11 +206,13 @@ local function CleanText(s)
 end
 R.CleanText = CleanText
 
-local function Broadcast(r)
+-- To the guild, or whispered to one member (`target`: their name as the game wants it)
+local function Broadcast(r, target)
 	lastHeard[r.id] = GetTime()
 	if not ns.Send then return end
-	if r.gold then ns.Send(table.concat({ "G", r.id, r.gold }, SEP), "GUILD") end
-	ns.Send(Encode(r), "GUILD")
+	local channel = target and "WHISPER" or "GUILD"
+	if r.gold then ns.Send(table.concat({ "G", r.id, r.gold }, SEP), channel, target) end
+	ns.Send(Encode(r), channel, target)
 end
 
 -- A request's reward, heard just before the request itself
@@ -238,7 +240,15 @@ function R.Receive(id, from, to, recipe, t, st, u)
 	local g = ns.Guild()
 	if g.forgotten and g.forgotten[id] then return end
 	local cur = s[id]
-	if cur and (cur.u or 0) >= u then return end
+	if cur then
+		local cu = cur.u or 0
+		if u < cu then return end
+		-- two changes in the same second (accepted as it was cancelled): every client keeps the same, the final one
+		if u == cu then
+			local ra, rb = RANK[st] or 0, RANK[cur.st] or 0
+			if not (ra > rb or (ra == rb and ra == 3 and st < cur.st)) then return end
+		end
+	end
 	local before = cur and cur.st
 	local r = cur or { id = id }
 	r.from, r.to, r.recipe, r.t, r.st, r.u = from, to, recipe, t, st, u
@@ -296,7 +306,9 @@ function R.ReceiveBoard(id, from, to, recipe, t, st, u, text)
 		if u == cu then
 			-- two changes in the same second (two members took it at once): every client picks the same one
 			local a, b = RANK[st] or 0, RANK[cur.st] or 0
-			if a < b or (a == b and not (st == "taken" and cur.st == "taken" and to and cur.to and to < cur.to)) then return end
+			local wins = a > b or (a == b and st == "taken" and cur.st == "taken" and to and cur.to and to < cur.to)
+				or (a == b and a == 3 and st < cur.st) -- done and cancelled at once: the same one everywhere
+			if not wins then return end
 		end
 	end
 	local before, beforeTo = cur and cur.st, cur and cur.to
@@ -426,34 +438,39 @@ local function Online(key)
 	return e and e.online
 end
 
+-- The member who relays the posts and requests whose sides are offline: the online member with the addon
+-- whose name sorts first (one, so the newcomer doesn't get the same thing many times)
+local function Relayer(newcomer)
+	local g, best = ns.Guild(), nil
+	for _, e in ipairs(ns.roster) do
+		if e.online and e.name ~= newcomer and g and g.members[e.name] and (not best or e.name < best) then best = e.name end
+	end
+	return best
+end
+
+-- Someone came online (or reloaded): what they may have missed, whispered to them only. A request goes to its
+-- sides; a board post to everyone. Its own sides send it; when they're all offline, one relayer does.
 function R.MemberOnline(key)
 	local me = ns.Me()
 	if key == me then return end
+	local e = ns.inRoster[key]
+	local target = e and (e.raw or e.name)
+	if not target then return end
+	local now, relayer = GetServerTime(), nil
 	for _, r in pairs(Store() or {}) do
-		-- final states are relayed for a week too: whoever was offline must learn of a cancellation
-		local live = not FINAL[r.st] or GetServerTime() - (r.u or 0) < EXPIRE
-		if r.board and live and not (GetServerTime() - (r.t or 0) > EXPIRE and r.st == "open") then
-			-- every member should see the board: its poster (or taker) sends it, else anyone, whoever goes first
+		-- final states for a week too (whoever was offline must learn of a cancellation); expired ones
+		-- never travel: every client expires them itself
+		local live = r.st ~= "expired" and (not FINAL[r.st] or now - (r.u or 0) < EXPIRE)
+		local concerns = r.board or r.to == key or r.from == key
+		if live and concerns and not (r.st == "open" and now - (r.t or 0) > EXPIRE) then
 			local side = r.from == me or r.to == me
-			if side or not (Online(r.from) or (r.to and Online(r.to))) then
-				local asked = GetTime()
-				local wait = side and (0.5 + math.random() * 2) or (RELAY_WAIT[1] + math.random() * (RELAY_WAIT[2] - RELAY_WAIT[1]))
-				C_Timer.After(wait, function()
-					if (lastHeard[r.id] or 0) > asked then return end
-					Broadcast(r)
-				end)
+			-- the sides who could send it, the newcomer aside
+			local sidesAway = not ((r.from ~= key and Online(r.from)) or (r.to and r.to ~= key and Online(r.to)))
+			if not side and sidesAway then
+				relayer = relayer or Relayer(key) or ""
 			end
-		elseif not r.board and live and (r.to == key or r.from == key) then
-			local side = r.from == me or r.to == me
-			local otherSide = (r.from == key) and r.to or r.from
-			-- the sides send at once; anyone else only when the other side is offline too, and only if nobody did first
-			if side or not Online(otherSide) then
-				local asked = GetTime()
-				local wait = side and (0.5 + math.random() * 2) or (RELAY_WAIT[1] + math.random() * (RELAY_WAIT[2] - RELAY_WAIT[1]))
-				C_Timer.After(wait, function()
-					if not side and (lastHeard[r.id] or 0) > asked then return end
-					Broadcast(r)
-				end)
+			if side or (sidesAway and relayer == me) then
+				C_Timer.After(0.5 + math.random() * 2, function() Broadcast(r, target) end)
 			end
 		end
 	end

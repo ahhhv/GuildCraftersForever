@@ -56,6 +56,14 @@ function ns.Opt(key)
 	return v
 end
 
+-- Only what the player changed is saved: a default that changes in a new version reaches everyone else
+function ns.SetOpt(key, v)
+	local db = GuildCraftersForeverDB
+	if not (db and db.opts) then return end
+	if v == ns.DEFAULTS[key] then v = nil end
+	db.opts[key] = v
+end
+
 ns.roster = {}        -- { { name, short, level, class, online, rank, guid } } in roster order
 ns.inRoster = {}      -- key -> roster entry
 ns.byGuid = {}        -- GUID -> roster entry
@@ -100,6 +108,14 @@ ns.FullName = ns.Key
 
 function ns.Short(name)
 	return name
+end
+
+-- Whether the sender of a message (a key, maybe just a first name: some APIs give only that) is this roster row
+function ns.SameCharacter(sender, e)
+	if not (sender and e) then return false end
+	if sender == e.name or ns.Key(e.raw) == sender then return true end
+	if not sender:find(" ", 1, true) then return (e.name:match("^(%S+)") or e.name) == sender end
+	return false
 end
 
 -- You: your guild roster row (found by GUID) once the roster is in, else your own name
@@ -437,7 +453,7 @@ function ns.Rescan(what, change)
 	end
 	if what == "recipes" then
 		ns.ScanProfessions(rec)
-		ns.ScanRecipes(rec)
+		ns.recipesRead = ns.ScanRecipes(rec)
 	end
 	if what == "all" or what == "talents" then ns.ScanTalents(rec) end
 	local changed = Fingerprint(rec) ~= before
@@ -607,8 +623,9 @@ f:SetScript("OnEvent", function(_, event, ...)
 				math.random(0, 65535), math.random(0, 65535))
 		end
 		GuildCraftersForeverDB.opts = GuildCraftersForeverDB.opts or {}
+		-- (older versions saved every default: those go, so defaults can change)
 		for k, v in pairs(ns.DEFAULTS) do
-			if GuildCraftersForeverDB.opts[k] == nil then GuildCraftersForeverDB.opts[k] = v end
+			if GuildCraftersForeverDB.opts[k] == v then GuildCraftersForeverDB.opts[k] = nil end
 		end
 		if ns.SetUpOptions then ns.SetUpOptions() end
 		for _, e in ipairs({ "SKILL_LINES_CHANGED", "TRADE_SKILL_SHOW", "TRADE_SKILL_LIST_UPDATE", "NEW_RECIPE_LEARNED",
@@ -621,8 +638,12 @@ f:SetScript("OnEvent", function(_, event, ...)
 		C_Timer.NewTicker(60, function() if C_GuildInfo and C_GuildInfo.GuildRoster then C_GuildInfo.GuildRoster() end end)
 	elseif event == "SKILL_LINES_CHANGED" or event == "PLAYER_LEVEL_UP" then
 		Soon("prof", 2)
-	elseif event == "TRADE_SKILL_SHOW" or event == "TRADE_SKILL_LIST_UPDATE" or event == "NEW_RECIPE_LEARNED" then
+	elseif event == "TRADE_SKILL_SHOW" or event == "NEW_RECIPE_LEARNED" then
+		ns.recipesRead = false
 		Soon("recipes", 1.5)
+	elseif event == "TRADE_SKILL_LIST_UPDATE" then
+		-- it fires on every craft: the list is read again only until it has been read once since the window opened
+		if not ns.recipesRead then Soon("recipes", 1.5) end
 	elseif event == "GUILD_ROSTER_UPDATE" or event == "PLAYER_GUILD_UPDATE" then
 		ns.ReadRoster()
 	else

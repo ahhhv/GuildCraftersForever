@@ -239,7 +239,7 @@ function ns.ChooseCrafter(itemID, all)
 	local p = picker
 	local list = {}
 	for _, c in ipairs(all) do
-		if not c.closed then list[#list + 1] = c end
+		if not c.closed and not c.mine then list[#list + 1] = c end
 	end
 	local itemName = C_Item.GetItemNameByID(itemID) or ("#" .. itemID)
 	if #list > 0 then
@@ -320,7 +320,7 @@ local function Toast()
 	t.text:SetPoint("TOPLEFT", t.title, "BOTTOMLEFT", 0, -3)
 	t.text:SetPoint("RIGHT", -12, 0)
 	t.text:SetJustifyH("LEFT")
-	t.text:SetWordWrap(false)
+	t.text:SetWordWrap(true)
 	t.b1 = CreateFrame("Button", nil, t, "UIPanelButtonTemplate")
 	t.b1:SetSize(90, 22)
 	t.b1:SetPoint("BOTTOMRIGHT", -10, 8)
@@ -334,6 +334,10 @@ local function Toast()
 	toast = t
 	return t
 end
+
+-- Notices wait their turn: one on screen, the next when it closes (button, X or its 25 seconds)
+local waiting = {}
+local ShowToast
 
 -- The "View" button can't open the guild window (it would taint it): with the window closed it says
 -- "View (press J)", and pressing J then lands on the Requests tab
@@ -349,8 +353,19 @@ local function Label(b)
 	end
 end
 
-local function ShowToast(title, text, icon, b1, b2)
+ShowToast = function(title, text, icon, b1, b2)
 	local t = Toast()
+	if t:IsShown() then
+		if #waiting < 10 then waiting[#waiting + 1] = { title, text, icon, b1, b2 } end
+		return
+	end
+	if not t.queued then
+		t.queued = true
+		t:HookScript("OnHide", function()
+			local nextOne = table.remove(waiting, 1)
+			if nextOne then C_Timer.After(0.4, function() ShowToast(unpack(nextOne, 1, 5)) end) end
+		end)
+	end
 	t.title:SetText(title)
 	t.text:SetText(text)
 	t.icon:SetTexture(icon or 134400)
@@ -366,6 +381,7 @@ local function ShowToast(title, text, icon, b1, b2)
 			b:Hide()
 		end
 	end
+	t:SetHeight(math.max(86, (t.text:GetStringHeight() or 14) + 72))
 	t.shownAt = GetTime()
 	-- the window may open or close while the notice is up
 	local tick = 0
@@ -394,7 +410,7 @@ function ns.NotifyRequest(r)
 	local name = ns.RecipeName(r.recipe)
 	ns.Print(L["%s asks you to craft %s. (J > Requests)"]:format("|cffffd100" .. r.from .. "|r", name))
 	local line = L["%s asks you for: %s"]:format(r.from, name)
-	if r.gold then line = line .. "\n" .. L["Reward: %s"]:format(ns.Req.Money(r.gold)) end
+	if r.gold then line = line .. "  ·  |cffffd100" .. L["Reward: %s"]:format(ns.Req.Money(r.gold)) .. "|r" end
 	ShowToast(L["Recipe request"], line, ns.RecipeIcon(r.recipe),
 		{ L["Accept"], function() ns.Req.Set(r.id, "accepted") end },
 		{ L["View"], OpenRequests })
@@ -406,7 +422,7 @@ function ns.NotifyBoard(r)
 	local title = ns.Req.Title(r)
 	ns.Print(L["Guild board: %s is looking for %s, and you can craft it. (J > Requests)"]:format("|cffffd100" .. r.from .. "|r", title))
 	local line = L["%s is looking for: %s"]:format(r.from, title)
-	if r.gold then line = line .. "\n" .. L["Reward: %s"]:format(ns.Req.Money(r.gold)) end
+	if r.gold then line = line .. "  ·  |cffffd100" .. L["Reward: %s"]:format(ns.Req.Money(r.gold)) .. "|r" end
 	ShowToast(L["Guild board"], line, ns.RecipeIcon(r.recipe),
 		{ L["Take it"], function() ns.Req.Take(r.id) end },
 		{ L["View"], OpenRequests })

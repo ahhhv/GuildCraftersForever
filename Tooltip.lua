@@ -25,14 +25,16 @@ end
 -- The members (not me) who know one of `recipes`: { { key, recipe, online, class } }, online first
 local function Crafters(recipes)
 	local index, me = ns.CraftIndex(), ns.Me()
+	local myMain = ns.MainOf(me)
 	local out, seen = {}, {}
 	for _, recipe in ipairs(recipes or {}) do
 		for _, key in ipairs(index[recipe] or {}) do
 			if key ~= me and not seen[key] then
 				seen[key] = true
 				local e = ns.inRoster[key]
+				-- mine: one of your own characters (nobody to ask)
 				out[#out + 1] = { key = key, recipe = recipe, online = e and e.online or false, class = e and e.class,
-					closed = not ns.TakesRequests(key) }
+					closed = not ns.TakesRequests(key), mine = ns.MainOf(key) == myMain }
 			end
 		end
 	end
@@ -66,9 +68,10 @@ local function Names(list)
 		local name = c.key
 		if color and color.WrapTextInColorCode then name = color:WrapTextInColorCode(name) end
 		local main = ns.MainOf(c.key)
-		if main ~= c.key then name = name .. " |cff909090(" .. L["alt of %s"]:format(main) .. ")|r" end
+		if c.mine then name = name .. " |cff909090(" .. L["your alt"] .. ")|r"
+		elseif main ~= c.key then name = name .. " |cff909090(" .. L["alt of %s"]:format(main) .. ")|r" end
 		if c.online then name = name .. " |cff40ff40•|r" end
-		if c.closed then name = name .. " |cff909090(" .. L["no requests"] .. ")|r" end
+		if c.closed and not c.mine then name = name .. " |cff909090(" .. L["no requests"] .. ")|r" end
 		parts[#parts + 1] = name
 	end
 	return table.concat(parts, ", ")
@@ -130,7 +133,7 @@ local function AddLines(tooltip, itemID, itemName)
 			local key = ns.ShortcutText()
 			if key then
 				local open = false
-				for _, c in ipairs(list) do if not c.closed then open = true break end end
+				for _, c in ipairs(list) do if not c.closed and not c.mine then open = true break end end
 				tooltip:AddLine((open and L["%s: request it from the guild"] or L["%s: post it on the guild board"]):format(key), 0.5, 0.75, 1)
 			end
 		end
@@ -186,6 +189,18 @@ end
 function ns.RequestItem(itemID)
 	local recipes = ns.RecipesForItem(itemID)
 	local list = Crafters(recipes)
+	local others, myAlt = {}, nil
+	for _, c in ipairs(list) do
+		if c.mine then myAlt = myAlt or c.key else others[#others + 1] = c end
+	end
+	-- nobody else can, but you (or one of your characters) can: nothing to ask
+	if #others == 0 and (IKnow(recipes) or myAlt) then
+		local name = C_Item.GetItemNameByID(itemID) or ("#" .. itemID)
+		if IKnow(recipes) then ns.Print(L["You can craft %s yourself."]:format(name))
+		else ns.Print(L["Your character %s can craft %s."]:format(myAlt, name)) end
+		return
+	end
+	list = others
 	if #list == 0 then
 		-- nobody with the addon knows it: the guild board may still find someone
 		if recipes and recipes[1] and ns.ConfirmPost then ns.ConfirmPost(recipes[1]) end

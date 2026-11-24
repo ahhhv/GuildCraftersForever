@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.5.0-beta2
+
+### Fixes
+- A member's data can no longer be overwritten by someone else's addon sending it under their character.
+- A request accepted and cancelled in the same second no longer ends up accepted for one side and cancelled for the other.
+- Notices wait their turn: a second one no longer hides the first. Long notices now wrap.
+- Much less addon traffic: when someone logs in or reloads, what they missed is whispered to them only, by one member, instead of being sent to the whole guild by everyone. Expired requests aren't sent around any more.
+- No more hitches while crafting with the profession window open: recipes are read when the window opens or you learn one.
+- Option defaults are no longer saved, so a better default in a new version reaches everyone who didn't change it.
+
+### Improvements
+- Your own alts show as "your alt" on tooltips and aren't offered to ask for things. Using your shortcut on something you (or your alt) can craft says so instead of offering the guild board.
+
 ## 0.5.0-beta1
 
 ### New: rewards

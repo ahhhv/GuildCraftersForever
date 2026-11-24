@@ -17,7 +17,14 @@ function ns.SetUpOptions()
 	category = Settings.RegisterVerticalLayoutCategory("GuildCrafters Forever")
 
 	local function Check(key, name, tooltip, onChange)
-		local setting = Settings.RegisterAddOnSetting(category, "GUILDCRAFTERSFOREVER_" .. key, key, opts, "boolean", name, ns.DEFAULTS[key])
+		local var, setting = "GUILDCRAFTERSFOREVER_" .. key, nil
+		-- a proxy, so only a changed value is saved (ns.SetOpt); the plain setting where there's no proxy
+		if Settings.RegisterProxySetting then
+			local ok, s = pcall(Settings.RegisterProxySetting, category, var, "boolean", name, ns.DEFAULTS[key],
+				function() return ns.Opt(key) end, function(v) ns.SetOpt(key, v) end)
+			if ok then setting = s end
+		end
+		setting = setting or Settings.RegisterAddOnSetting(category, var, key, opts, "boolean", name, ns.DEFAULTS[key])
 		if onChange and setting.SetValueChangedCallback then setting:SetValueChangedCallback(onChange) end
 		Settings.CreateCheckbox(category, setting, tooltip)
 	end
@@ -127,7 +134,7 @@ function ns.RecordShortcut()
 				r.msg:SetText("|cffff6060" .. L["Hold at least one of Alt, Ctrl or Shift while you click."] .. "|r")
 				return
 			end
-			GuildCraftersForeverDB.opts.shortcut = s
+			ns.SetOpt("shortcut", s)
 			r.current:SetText(ns.ShortcutText(s))
 			local warn = Warn(s)
 			r.msg:SetText(warn and ("|cffffd100" .. warn .. "|r") or ("|cff40ff40" .. L["Saved."] .. "|r"))
@@ -139,7 +146,7 @@ function ns.RecordShortcut()
 		r.off:SetPoint("BOTTOMRIGHT", r, "BOTTOM", -6, 12)
 		r.off:SetText(L["Turn it off"])
 		r.off:SetScript("OnClick", function()
-			GuildCraftersForeverDB.opts.shortcut = "none"
+			ns.SetOpt("shortcut", "none")
 			r.current:SetText(L["None"])
 			r.msg:SetText(L["Saved."])
 			ns.Print(L["Shortcut to request an item: %s"]:format(L["None"]))

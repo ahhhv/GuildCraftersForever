@@ -244,5 +244,8 @@ if locale == "esES" or locale == "esMX" then
 	L["Hover any item (bags, chat links, auction house) to see who in your guild can craft it. Use your shortcut on it (%s) to ask them."] = "Pasa el ratón por cualquier objeto (bolsas, enlaces del chat, subasta) para ver quién de tu guild puede fabricarlo. Usa tu atajo sobre él (%s) para pedírselo."
 	L["When you open a mailbox, a helper offers what's pending: the letter for a crafter, their materials, or the crafted item back (cash on delivery if there's a reward)."] = "Al abrir un buzón, un ayudante te ofrece lo pendiente: la carta para un artesano, sus materiales o el objeto fabricado de vuelta (contra reembolso si hay recompensa)."
 	L["Esc > Options > AddOns > GuildCrafters Forever: tooltips, your shortcut, alts, whether you take requests, and this tour. That's all: happy crafting!"] = "Esc > Opciones > AddOns > GuildCrafters Forever: tooltips, tu atajo, alts, si aceptas solicitudes y este tutorial. ¡Eso es todo, a fabricar!"
+	L["your alt"] = "tu alt"
+	L["You can craft %s yourself."] = "Puedes fabricar %s tú mismo."
+	L["Your character %s can craft %s."] = "Tu personaje %s puede fabricar %s."
 	L["The old \"GuildCrafters\" folder is still installed: delete Interface\\AddOns\\GuildCrafters and restart the game. GuildCrafters Forever stays off until then."] = "Sigue instalada la carpeta antigua «GuildCrafters»: borra Interface\\AddOns\\GuildCrafters y reinicia el juego. GuildCrafters Forever no se activará hasta entonces."
 end
