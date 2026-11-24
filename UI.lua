@@ -438,6 +438,7 @@ local function RefreshProf()
 	local q = state.search
 	local list = Members(function(d)
 		if state.online and not d.online then return false end
+		if state.takes and (d.noaddon or not ns.TakesRequests(d.name)) then return false end
 		if d.noaddon then return state.prof == nil and q == "" end
 		if state.prof and not d.rec.p[state.prof] then return false end
 		if q ~= "" then
@@ -501,9 +502,15 @@ local function BuildProfPanel()
 	prof.searchBox:SetPoint("TOPRIGHT", -12, -9)
 	prof.onlineBox = MakeCheck(p, L["Online only"], function(on) state.online = on ns.RefreshUI() end)
 	prof.onlineBox:SetPoint("TOPLEFT", 8, -34)
+	-- who takes requests right now (members with the addon who haven't turned them off)
+	prof.takesBox = MakeCheck(p, L["Take requests"], function(on) state.takes = on ns.RefreshUI() end)
+	prof.takesBox:SetPoint("LEFT", prof.onlineBox.Text or prof.onlineBox.text or prof.onlineBox, "RIGHT", 18, 0)
 
 	prof.members = MakeList(p, MEMBER_ROW, function(b, d)
 		MemberRow(b, d, ProfRightText(d))
+		if not d.noaddon and not ns.TakesRequests(d.name) then
+			b.left:SetText((b.left:GetText() or "") .. "  |cff909090(" .. L["no requests"] .. ")|r")
+		end
 		b.sel:SetShown(d.name == state.selected)
 		b:SetScript("OnClick", function(_, button)
 			if button == "RightButton" and d.online then Whisper(d.name) return end

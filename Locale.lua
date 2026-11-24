@@ -247,5 +247,6 @@ if locale == "esES" or locale == "esMX" then
 	L["your alt"] = "tu alt"
 	L["You can craft %s yourself."] = "Puedes fabricar %s tú mismo."
 	L["Your character %s can craft %s."] = "Tu personaje %s puede fabricar %s."
+	L["Take requests"] = "Aceptan solicitudes"
 	L["The old \"GuildCrafters\" folder is still installed: delete Interface\\AddOns\\GuildCrafters and restart the game. GuildCrafters Forever stays off until then."] = "Sigue instalada la carpeta antigua «GuildCrafters»: borra Interface\\AddOns\\GuildCrafters y reinicia el juego. GuildCrafters Forever no se activará hasta entonces."
 end

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.0-beta3
+
+### Improvements
+- Professions tab: a **Take requests** box shows only the members who take requests right now (with the addon, and requests not turned off). Unticked, those who don't take them are marked "no requests".
+
 ## 0.5.0-beta2
 
 ### Fixes
