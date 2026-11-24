@@ -520,6 +520,7 @@ local function BuildProfPanel()
 	local right = CreateFrame("Frame", nil, p)
 	right:SetPoint("TOPLEFT", prof.members.box, "TOPRIGHT", 26, 0)
 	right:SetPoint("BOTTOMRIGHT", -8, 8)
+	prof.right = right
 	prof.title = right:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 	prof.title:SetPoint("TOPLEFT", 2, 2)
 	prof.title:SetJustifyH("LEFT")
@@ -938,6 +939,8 @@ local function SetUp()
 	end)
 	CF:HookScript("OnHide", function() HidePanels(true) end)
 	UpdateTabs()
+	-- what the guided tour points at
+	ns.ui = { tabs = tabs, panels = panels, prof = prof, tal = tal, show = ShowPanel, shown = IsGuildShown }
 end
 
 --------------------------------------------------------------------------------
@@ -996,6 +999,39 @@ local function OpenGuild(which)
 	end
 end
 
+-- What used to be commands, now buttons in the options (the commands still work)
+function ns.SendAgain()
+	ns.Rescan("all")
+	ns.Hello(false)
+	ns.Print(L["Sharing your data with the guild."])
+end
+
+function ns.MakeMain()
+	GuildCraftersForeverDB.main = ns.Me()
+	ns.Rescan("all")
+	ns.Print(L["%s is now your main: your other characters will show as its alts."]:format(ns.Me()))
+end
+
+function ns.PruneNow()
+	ns.Print(L["Removed %d old members."]:format(ns.Prune()))
+	ns.RefreshUI()
+end
+
+-- Sync diagnostics, for bug reports
+function ns.PrintStatus()
+	local g = ns.Guild()
+	local n, mine = 0, 0
+	for _ in pairs(g and g.members or {}) do n = n + 1 end
+	local me = ns.MyRecord()
+	for _, p in pairs(me.p or {}) do mine = mine + #(p.rc or {}) end
+	ns.Print(L["Me: %s  ·  GUID %s  ·  game name: %s  ·  version %s"]:format(tostring(ns.Me()), tostring(UnitGUID("player")),
+		tostring(UnitName("player")), tostring(ns.MyVersion and ns.MyVersion() or "?")))
+	ns.Print(L["Guild: %s  ·  roster: %d members  ·  saved records: %d"]:format(tostring(IsInGuild() and GetGuildInfo("player")), #ns.roster, n))
+	ns.Print(L["My record: stamp %s  ·  %d recipes  ·  talents: %s"]:format(tostring(me.t), mine, tostring(ns.TalentSummary(me))))
+	ns.Print(L["Messages: sent %d (failed %d)  ·  received %d  ·  records received %d"]:format(ns.stats.sent, ns.stats.failed, ns.stats.got, ns.stats.records))
+	for _, line in ipairs(ns.LogLines()) do ns.Print("  " .. line) end
+end
+
 local function Slash(msg)
 	local cmd = strlower(strtrim(msg or ""))
 	if cmd == "" or cmd == "prof" then
@@ -1005,13 +1041,9 @@ local function Slash(msg)
 	elseif cmd == "solicitudes" or cmd == "requests" then
 		OpenGuild("req")
 	elseif cmd == "enviar" or cmd == "send" then
-		ns.Rescan("all")
-		ns.Hello(false)
-		ns.Print(L["Sharing your data with the guild."])
+		ns.SendAgain()
 	elseif cmd == "main" then
-		GuildCraftersForeverDB.main = ns.Me()
-		ns.Rescan("all")
-		ns.Print(L["%s is now your main: your other characters will show as its alts."]:format(ns.Me()))
+		ns.MakeMain()
 	elseif cmd == "versiones" or cmd == "versions" then
 		if ns.PrintVersions then ns.PrintVersions() end
 	elseif cmd == "atajo" or cmd == "shortcut" then
@@ -1019,32 +1051,13 @@ local function Slash(msg)
 	elseif cmd == "opciones" or cmd == "options" or cmd == "config" then
 		if ns.OpenOptions then ns.OpenOptions() end
 	elseif cmd == "estado" or cmd == "status" then
-		local g = ns.Guild()
-		local n, mine = 0, 0
-		for _ in pairs(g and g.members or {}) do n = n + 1 end
-		local me = ns.MyRecord()
-		for _, p in pairs(me.p or {}) do mine = mine + #(p.rc or {}) end
-		ns.Print(("Yo: %s  ·  GUID %s  ·  nombre del juego: %s"):format(tostring(ns.Me()), tostring(UnitGUID("player")), tostring(UnitName("player"))))
-		ns.Print(("Guild: %s  ·  lista: %d miembros  ·  registros guardados: %d"):format(tostring(IsInGuild() and GetGuildInfo("player")), #ns.roster, n))
-		ns.Print(("Mi registro: sello %s  ·  %d recetas  ·  talentos: %s"):format(tostring(me.t), mine, tostring(ns.TalentSummary(me))))
-		ns.Print(("Mensajes: enviados %d (fallidos %d)  ·  recibidos %d  ·  registros recibidos %d"):format(ns.stats.sent, ns.stats.failed, ns.stats.got, ns.stats.records))
-		for _, line in ipairs(ns.LogLines()) do ns.Print("  " .. line) end
+		ns.PrintStatus()
 	elseif cmd == "limpiar" or cmd == "prune" then
-		ns.Print(L["Removed %d old members."]:format(ns.Prune()))
-		ns.RefreshUI()
+		ns.PruneNow()
+	elseif cmd == "tutorial" then
+		if ns.StartTutorial then ns.StartTutorial() end
 	else
-		ns.Print(L["Commands:"])
-		ns.Print("  /gcraft - " .. L["open the guild window on the professions tab"])
-		ns.Print("  /gcraft talentos - " .. L["Specializations and talents"])
-		ns.Print("  /gcraft solicitudes - " .. L["Requests"])
-		ns.Print("  /gcraft main - " .. L["make this character your main"])
-		ns.Print("  /gcraft opciones - " .. L["Options"])
-		ns.Print("  /gcraft atajo - " .. L["record your shortcut to request items"])
-		ns.Print("  /gcraft versiones - " .. L["which version each member has"])
-		ns.Print("  /gcraft enviar - " .. L["send your data again"])
-		ns.Print("  /gcraft limpiar - " .. L["forget data of members who left the guild"])
-		ns.Print("  /gcraft estado - diagnóstico de la sincronización")
-		ns.Print("  " .. L["Open your profession windows once so your recipes are shared."])
+		ns.Print(L["/gcraft opens GuildCrafters Forever. Everything else is in Esc > Options > AddOns > GuildCrafters Forever."])
 	end
 end
 

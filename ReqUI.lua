@@ -45,7 +45,30 @@ end
 -- system that the Esc key goes through)
 local confirm
 
-local function Confirm(text, okText, onOk)
+-- A small "reward (gold, optional)" box: a label and a number field
+local function GoldBox(parent)
+	local box = CreateFrame("EditBox", nil, parent, "InputBoxTemplate")
+	box:SetSize(70, 22)
+	box:SetAutoFocus(false)
+	box:SetNumeric(true)
+	box:SetMaxLetters(4)
+	box.label = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+	box.label:SetPoint("RIGHT", box, "LEFT", -10, 0)
+	box.label:SetText(L["Reward (gold, optional):"])
+	box.hint = parent:CreateFontString(nil, "OVERLAY", "GameFontDisableSmall")
+	box.hint:SetPoint("LEFT", box, "RIGHT", 8, 0)
+	box.hint:SetText(L["cash on delivery"])
+	box:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+	function box:Copper() return ns.Req.Gold((tonumber(self:GetText()) or 0) * 10000) end
+	function box:SetShownAll(on)
+		self:SetShown(on); self.label:SetShown(on); self.hint:SetShown(on)
+		self:SetText("")
+	end
+	return box
+end
+ns.GoldBox = GoldBox
+
+local function Confirm(text, okText, onOk, withGold)
 	if not confirm then
 		local c = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
 		c:SetSize(400, 150)
@@ -70,13 +93,20 @@ local function Confirm(text, okText, onOk)
 		c.no:SetPoint("BOTTOMLEFT", c, "BOTTOM", 6, 14)
 		c.no:SetText(CANCEL or "Cancel")
 		c.no:SetScript("OnClick", function() c:Hide() end)
+		c.gold = GoldBox(c)
+		c.gold:SetPoint("BOTTOM", 40, 48)
 		c:Hide()
 		confirm = c
 	end
 	confirm.text:SetText(text)
-	confirm:SetHeight(math.max(130, (confirm.text:GetStringHeight() or 60) + 70))
+	confirm.gold:SetShownAll(withGold and true or false)
+	confirm:SetHeight(math.max(130, (confirm.text:GetStringHeight() or 60) + 70 + (withGold and 36 or 0)))
 	confirm.ok:SetText(okText)
-	confirm.ok:SetScript("OnClick", function() confirm:Hide() onOk() end)
+	confirm.ok:SetScript("OnClick", function()
+		local copper = withGold and confirm.gold:Copper() or nil
+		confirm:Hide()
+		onOk(copper)
+	end)
 	confirm:Show()
 end
 
@@ -89,15 +119,15 @@ function ns.AskRequest(to, recipe)
 		ns.Print(L["%s doesn't take requests. You can post it on the guild board instead."]:format(to))
 		return
 	end
-	Confirm(text, L["Request"], function()
-		local r, already = ns.Req.Create(to, recipe)
+	Confirm(text, L["Request"], function(gold)
+		local r, already = ns.Req.Create(to, recipe, gold)
 		if not r then return end
 		if already then
 			ns.Print(L["You had already asked %s for %s."]:format(to, ns.RecipeName(recipe)))
 		else
 			ns.Print(L["Request sent to %s: %s. Next time you open a mailbox you can also send them a letter."]:format(to, ns.RecipeName(recipe)))
 		end
-	end)
+	end, true)
 end
 
 --------------------------------------------------------------------------------
@@ -119,7 +149,7 @@ function ns.ConfirmPost(recipe)
 		:format("|cffffffff" .. ns.RecipeName(recipe) .. "|r")
 	local mats = ns.MaterialsText and ns.MaterialsText(recipe) or ""
 	if mats ~= "" then text = text .. "\n\n" .. mats end
-	Confirm(text, L["Post"], function() Posted(ns.Req.Post(recipe)) end)
+	Confirm(text, L["Post"], function(gold) Posted(ns.Req.Post(recipe, nil, gold)) end, true)
 end
 
 -- Free text to the board: our own little window with a text box
@@ -146,6 +176,9 @@ function ns.PostText()
 		p.edit:SetPoint("TOP", 0, -58)
 		p.edit:SetAutoFocus(true)
 		p.edit:SetMaxLetters(120)
+		p.gold = GoldBox(p)
+		p.gold:SetPoint("TOP", 40, -92)
+		p:SetHeight(180)
 		p.ok = CreateFrame("Button", nil, p, "UIPanelButtonTemplate")
 		p.ok:SetSize(120, 24)
 		p.ok:SetPoint("BOTTOMRIGHT", p, "BOTTOM", -6, 14)
@@ -157,8 +190,9 @@ function ns.PostText()
 		local function Go()
 			local text = ns.Req.CleanText(p.edit:GetText())
 			if text == "" then return end
+			local gold = p.gold:Copper()
 			p:Hide()
-			Posted(ns.Req.Post(0, text))
+			Posted(ns.Req.Post(0, text, gold))
 		end
 		p.ok:SetScript("OnClick", Go)
 		p.edit:SetScript("OnEnterPressed", Go)
@@ -170,6 +204,7 @@ function ns.PostText()
 	poster.text:SetText(L["What are you looking for? (for an item someone can craft, use your shortcut on it instead: %s)"]
 		:format(ns.ShortcutText() or L["none, see the options"]))
 	poster.edit:SetText("")
+	poster.gold:SetShownAll(true)
 	poster:Show()
 	poster.edit:SetFocus()
 end
@@ -230,13 +265,7 @@ function ns.ChooseCrafter(itemID, all)
 		b:SetText(c.key .. (c.online and ("  |cff40ff40" .. L["online"] .. "|r") or ""))
 		b:SetScript("OnClick", function()
 			p:Hide()
-			local r, already = ns.Req.Create(c.key, c.recipe)
-			if not r then return end
-			if already then
-				ns.Print(L["You had already asked %s for %s."]:format(c.key, ns.RecipeName(c.recipe)))
-			else
-				ns.Print(L["Request sent to %s: %s. Next time you open a mailbox you can also send them a letter."]:format(c.key, ns.RecipeName(c.recipe)))
-			end
+			ns.AskRequest(c.key, c.recipe)
 		end)
 		b:Show()
 		y = y - 28
@@ -250,7 +279,7 @@ function ns.ChooseCrafter(itemID, all)
 	local recipe = (all[1] and all[1].recipe) or (ns.RecipesForItem(itemID) or {})[1]
 	p.board:SetScript("OnClick", function()
 		p:Hide()
-		Posted(ns.Req.Post(recipe))
+		if recipe then ns.ConfirmPost(recipe) end
 	end)
 	p.board:ClearAllPoints()
 	p.board:SetPoint("TOP", 0, y - 4)
@@ -363,8 +392,10 @@ end
 -- Someone asks me
 function ns.NotifyRequest(r)
 	local name = ns.RecipeName(r.recipe)
-	ns.Print(L["%s asks you to craft %s. /gcraft requests"]:format("|cffffd100" .. r.from .. "|r", name))
-	ShowToast(L["Recipe request"], L["%s asks you for: %s"]:format(r.from, name), ns.RecipeIcon(r.recipe),
+	ns.Print(L["%s asks you to craft %s. (J > Requests)"]:format("|cffffd100" .. r.from .. "|r", name))
+	local line = L["%s asks you for: %s"]:format(r.from, name)
+	if r.gold then line = line .. "\n" .. L["Reward: %s"]:format(ns.Req.Money(r.gold)) end
+	ShowToast(L["Recipe request"], line, ns.RecipeIcon(r.recipe),
 		{ L["Accept"], function() ns.Req.Set(r.id, "accepted") end },
 		{ L["View"], OpenRequests })
 	if ns.RefreshUI then ns.RefreshUI() end
@@ -373,8 +404,10 @@ end
 -- A board post I can craft
 function ns.NotifyBoard(r)
 	local title = ns.Req.Title(r)
-	ns.Print(L["Guild board: %s is looking for %s, and you can craft it. /gcraft requests"]:format("|cffffd100" .. r.from .. "|r", title))
-	ShowToast(L["Guild board"], L["%s is looking for: %s"]:format(r.from, title), ns.RecipeIcon(r.recipe),
+	ns.Print(L["Guild board: %s is looking for %s, and you can craft it. (J > Requests)"]:format("|cffffd100" .. r.from .. "|r", title))
+	local line = L["%s is looking for: %s"]:format(r.from, title)
+	if r.gold then line = line .. "\n" .. L["Reward: %s"]:format(ns.Req.Money(r.gold)) end
+	ShowToast(L["Guild board"], line, ns.RecipeIcon(r.recipe),
 		{ L["Take it"], function() ns.Req.Take(r.id) end },
 		{ L["View"], OpenRequests })
 	if ns.RefreshUI then ns.RefreshUI() end
@@ -474,6 +507,7 @@ local function InitRow(b, d)
 	local who = mine and L["For: %s"]:format(r.to) or L["From: %s"]:format(r.from)
 	local line = ("%s  ·  %s  ·  %s"):format(who, StateText(r.st), ns.Ago(r.u))
 	if mine and r.st == "open" and not r.letter then line = line .. "  ·  |cffa0a0a0" .. L["letter ready at the mailbox"] .. "|r" end
+	if r.gold then line = line .. "  ·  |cffffd100" .. L["Reward: %s"]:format(ns.Req.Money(r.gold)) .. "|r" end
 	b.sub:SetText(line)
 	b.sub:SetTextColor(0.85, 0.85, 0.85)
 	local buttons = 0
@@ -562,6 +596,7 @@ function ns.InitBoardRow(b, r, mine)
 	end
 	local line = ("%s  ·  %s  ·  %s"):format(who, r.st == "open" and ("|cffffd100" .. L["On the board"] .. "|r") or StateText(r.st), ns.Ago(r.u))
 	if r.st == "open" and not mine and ns.Req.IKnow(r.recipe) then line = line .. "  ·  |cff40ff40" .. L["you can craft it"] .. "|r" end
+	if r.gold then line = line .. "  ·  |cffffd100" .. L["Reward: %s"]:format(ns.Req.Money(r.gold)) .. "|r" end
 	b.sub:SetText(line)
 	b.sub:SetTextColor(0.85, 0.85, 0.85)
 	local buttons = 0
@@ -640,6 +675,7 @@ function ns.BuildReqPanel(MakePanel, MakeList, _, RecipeTooltip)
 	req.post:SetScript("OnClick", function() ns.PostText() end)
 	hint:SetPoint("RIGHT", req.clear, "LEFT", -10, 0)
 	req.list = MakeList(p, ROW, InitRow, true)
+	ns.reqUI = req
 	req.list.box:SetPoint("TOPLEFT", 10, -62)
 	req.list.box:SetPoint("BOTTOMRIGHT", -28, 8)
 	return p
@@ -656,6 +692,12 @@ function ns.RefreshReq()
 		elseif r.to == me then forMe[#forMe + 1] = { r = r }
 		elseif r.from == me then mine[#mine + 1] = { r = r } end
 	end
+	-- the board: the biggest rewards first, then the newest
+	table.sort(board, function(a, b)
+		local ga, gb = a.r.gold or 0, b.r.gold or 0
+		if ga ~= gb then return ga > gb end
+		return (a.r.t or 0) > (b.r.t or 0)
+	end)
 	local rows = {}
 	rows[#rows + 1] = { header = true, key = "forMe", text = L["Asked of you"] .. ("  (%d)"):format(ns.Req.PendingForMe()),
 		hint = #forMe == 0 and L["Nothing for now."] or L["Right-click: whisper"] }

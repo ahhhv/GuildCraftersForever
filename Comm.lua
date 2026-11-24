@@ -233,6 +233,10 @@ local function OnMessage(text, channel, rawSender)
 		if channel == "GUILD" and ns.Req then ns.Req.Receive(select(2, strsplit(SEP, text, 8))) end
 		return
 	end
+	if text:sub(1, 2) == "G" .. SEP then
+		if channel == "GUILD" and ns.Req then ns.Req.ReceiveGold(select(2, strsplit(SEP, text, 3))) end
+		return
+	end
 	if text:sub(1, 2) == "B" .. SEP then
 		ns.stats.got = ns.stats.got + 1
 		ns.Log(("<- B %s (%s)"):format(rawSender, channel or "?"))

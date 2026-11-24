@@ -25,15 +25,40 @@ function ns.SetUpOptions()
 	Check("tooltip", L["Show who crafts items on tooltips"],
 		L["Item tooltips say who in your guild can craft them, and recipe items who already knows them."])
 
-	-- the shortcut: a button that opens the recorder (/gcraft shortcut does the same)
-	local ok = pcall(function()
-		local layout = SettingsPanel:GetLayout(category)
-		layout:AddInitializer(CreateSettingsButtonInitializer(L["Shortcut to request an item"], L["Record…"],
-			function() ns.RecordShortcut() end,
-			L["Use it on an item in your bags, a chat link or the auction house to ask a guildmate to craft it. Pick any combination of Alt, Ctrl and Shift with a mouse button."],
-			true))
-	end)
-	if not ok and ns.Log then ns.Log("options: no button for the shortcut; /gcraft shortcut") end
+	-- buttons (each also has its old /gcraft command, unannounced)
+	local layout = SettingsPanel and SettingsPanel.GetLayout and SettingsPanel:GetLayout(category)
+	local function Header(text)
+		if not (layout and CreateSettingsListSectionHeaderInitializer) then return end
+		pcall(function() layout:AddInitializer(CreateSettingsListSectionHeaderInitializer(text)) end)
+	end
+	local function Button(name, text, tip, fn)
+		if not (layout and CreateSettingsButtonInitializer) then return end
+		local ok = pcall(function() layout:AddInitializer(CreateSettingsButtonInitializer(name, text, fn, tip, true)) end)
+		if not ok and ns.Log then ns.Log("options: no button for " .. name) end
+	end
+
+	Button(L["Shortcut to request an item"], L["Record…"],
+		L["Use it on an item in your bags, a chat link or the auction house to ask a guildmate to craft it. Pick any combination of Alt, Ctrl and Shift with a mouse button."],
+		function() ns.RecordShortcut() end)
+
+	Header(L["Getting started"])
+	Button(L["Guided tour"], L["Start"], L["A step-by-step tour of the addon over the guild window."],
+		function() if ns.StartTutorial then ns.StartTutorial() end end)
+
+	Header(L["Your characters"])
+	Button(L["Main character"], L["Make this one my main"],
+		L["Your other characters show as its alts. Otherwise your main is your highest-level character."],
+		function() ns.MakeMain() end)
+
+	Header(L["Guild"])
+	Button(L["Versions"], L["Show in chat"], L["Which version of the addon each member has."],
+		function() if ns.PrintVersions then ns.PrintVersions() end end)
+	Button(L["Your data"], L["Send again"], L["Share your professions, recipes and talents with the guild again."],
+		function() ns.SendAgain() end)
+	Button(L["Old members"], L["Forget"], L["Forget the data of members who left the guild."],
+		function() ns.PruneNow() end)
+	Button(L["Diagnostics"], L["Show in chat"], L["Sync details, to attach to a bug report."],
+		function() ns.PrintStatus() end)
 
 	Check("shareAlts", L["Share my alts with the guild"],
 		L["Your characters with the addon show together under your main. Untick it to keep your alts private."],

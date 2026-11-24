@@ -24,7 +24,7 @@ Download it from CurseForge (search for "GuildCrafters Forever", game version Fo
 - Use your shortcut on an item (Alt+click by default; record any combination) to request it from a guildmate.
 
 ### Guild board
-- Post what you need to the whole guild; whoever can craft it gets a notice, and the first to take it crafts it.
+- Post what you need to the whole guild, with an optional reward paid cash on delivery; whoever can craft it gets a notice, and the first to take it crafts it.
 - Don't want requests? Turn them off in the options: you still see the board.
 
 ### Materials and ranking
@@ -33,24 +33,15 @@ Download it from CurseForge (search for "GuildCrafters Forever", game version Fo
 
 ### Mains and alts
 - Each player's characters grouped under their main, automatically (same account) or from the guild note ("alt de Jami").
-- `/gcraft main` picks your main; alts can be kept private in the options.
+- Pick your main in the options; alts can be kept private there too.
 
 ### Specializations & talents tab
 - Points per talent tree for **both spec groups**, and a clickable link to each member's build in Blizzard's talent window.
 
-## Commands
-| Command | What it does |
-|---|---|
-| `/gcraft` | Professions tab |
-| `/gcraft talents` | Specializations & talents tab |
-| `/gcraft requests` | Requests tab |
-| `/gcraft main` | Make this character your main |
-| `/gcraft options` | Open the options |
-| `/gcraft shortcut` | Record your shortcut to request items |
-| `/gcraft versions` | Which version each member has |
-| `/gcraft send` | Send your data again |
-| `/gcraft prune` | Forget members who left the guild |
-| `/gcraft status` | Sync diagnostics (for bug reports) |
+## Options
+Everything is in Esc > Options > AddOns > **GuildCrafters Forever**: tooltips, your shortcut to request items, sharing alts, taking requests, sound, and buttons for the guided tour, your main, members' versions, sending your data again, forgetting old members and sync diagnostics.
+
+`/gcraft` opens the addon.
 
 ## Releasing
 Publishing is automatic through GitHub Actions ([BigWigs packager](https://github.com/BigWigsMods/packager)): add a new version heading at the top of `CHANGELOG.md` and push to `main`. The workflow tags the commit and uploads it to CurseForge and GitHub Releases.

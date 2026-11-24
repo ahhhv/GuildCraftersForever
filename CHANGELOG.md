@@ -1,6 +1,18 @@
 # Changelog
 
-## 0.4.2
+## 0.5.0
+
+### New: rewards
+- Add an optional reward in gold when you request something or post on the guild board. It shows on the board (biggest rewards first), in notices and in the request rows.
+- The crafter sends the item **cash on delivery** for the reward: the mailbox helper fills it in. You pay when you take the item from the mail, so nobody can be left without their gold or their item.
+
+### New: guided tour
+- Esc > Options > AddOns > GuildCrafters Forever > **Guided tour**: a step-by-step tour of the addon over the guild window. It only runs when you start it.
+
+### Changed: buttons instead of commands
+- Everything that was a `/gcraft` command is now a button in the options: make this character your main, record your shortcut, members' versions, send your data again, forget old members and sync diagnostics.
+- `/gcraft` alone still opens the addon; the old commands still work but aren't listed.
+- Sync diagnostics are now translated.
 
 ### Improvements
 - The **View** button on notices says **View (press J)** while the guild window is closed: addons can't open it without causing errors, so press J and it opens on the Requests tab.

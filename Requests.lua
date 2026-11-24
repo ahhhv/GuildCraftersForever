@@ -48,6 +48,23 @@ local STATES = { open = true, accepted = true, declined = true, done = true, can
 local BSTATES = { open = true, taken = true, done = true, cancelled = true }
 local RANK = { open = 1, taken = 2, accepted = 2, done = 3, cancelled = 3, declined = 3, expired = 3 }
 local TEXT_MAX = 120
+local GOLD_MAX = 9999 * 10000 -- copper
+
+--------------------------------------------------------------------------------
+-- An optional reward (copper, r.gold), set by whoever asks. It travels in its
+-- own message, G~id~copper, sent just before the request or post, so older
+-- versions still get the request (they ignore G). The crafter sends the item
+-- cash on delivery for that much: whoever asked pays when they take it.
+--------------------------------------------------------------------------------
+
+local pendingGold = {} -- id -> copper heard before its request
+
+local function Gold(v)
+	v = math.floor(tonumber(v) or 0)
+	if v <= 0 then return nil end
+	return math.min(v, GOLD_MAX)
+end
+R.Gold = Gold
 local FINAL = { declined = true, done = true, cancelled = true, expired = true }
 R.FINAL = FINAL
 
@@ -191,7 +208,21 @@ R.CleanText = CleanText
 
 local function Broadcast(r)
 	lastHeard[r.id] = GetTime()
-	if ns.Send then ns.Send(Encode(r), "GUILD") end
+	if not ns.Send then return end
+	if r.gold then ns.Send(table.concat({ "G", r.id, r.gold }, SEP), "GUILD") end
+	ns.Send(Encode(r), "GUILD")
+end
+
+-- A request's reward, heard just before the request itself
+function R.ReceiveGold(id, copper)
+	copper = Gold(copper)
+	if type(id) ~= "string" or #id > 60 or not copper then return end
+	pendingGold[id] = copper
+	local r = R.Get(id)
+	if r and not r.gold then
+		r.gold = copper
+		if ns.RefreshUI then ns.RefreshUI() end
+	end
 end
 
 local function Name(v) return type(v) == "string" and #v > 0 and #v <= 60 and not v:find(SEP, 1, true) and v or nil end
@@ -211,6 +242,7 @@ function R.Receive(id, from, to, recipe, t, st, u)
 	local before = cur and cur.st
 	local r = cur or { id = id }
 	r.from, r.to, r.recipe, r.t, r.st, r.u = from, to, recipe, t, st, u
+	r.gold = r.gold or pendingGold[id]
 	s[id] = r
 	local me = ns.Me()
 	if r.to == me and st == "open" and not ns.Opt("acceptRequests") then
@@ -270,6 +302,7 @@ function R.ReceiveBoard(id, from, to, recipe, t, st, u, text)
 	local before, beforeTo = cur and cur.st, cur and cur.to
 	local r = cur or { id = id, board = true }
 	r.board, r.from, r.to, r.recipe, r.t, r.st, r.u, r.text = true, from, to, recipe, t, st, u, text
+	r.gold = r.gold or pendingGold[id]
 	s[id] = r
 	local me = ns.Me()
 	if st == "open" and not cur and from ~= me and not r.seen and GetServerTime() - t < EXPIRE
@@ -303,7 +336,7 @@ local function NewID()
 end
 
 -- Post on the board: a recipe (recipe ID, an optional note) or free text (recipe 0 or nil)
-function R.Post(recipe, text)
+function R.Post(recipe, text, gold)
 	local s, me = Store(), ns.Me()
 	recipe, text = tonumber(recipe) or 0, CleanText(text)
 	if not (s and me) or (recipe == 0 and text == "") then return nil end
@@ -312,7 +345,7 @@ function R.Post(recipe, text)
 			and r.recipe == recipe and (recipe > 0 or r.text == text) then return r, true end
 	end
 	local now = GetServerTime()
-	local r = { id = NewID(), board = true, from = me, recipe = recipe, text = text, t = now, st = "open", u = now }
+	local r = { id = NewID(), board = true, from = me, recipe = recipe, text = text, t = now, st = "open", u = now, gold = Gold(gold) }
 	s[r.id] = r
 	Broadcast(r)
 	if ns.RefreshUI then ns.RefreshUI() end
@@ -342,7 +375,7 @@ end
 -- Making and answering
 --------------------------------------------------------------------------------
 
-function R.Create(to, recipe)
+function R.Create(to, recipe, gold)
 	local s = Store()
 	local me = ns.Me()
 	if not (s and to and recipe and me) or to == me then return nil end
@@ -353,7 +386,7 @@ function R.Create(to, recipe)
 	end
 	local now = GetServerTime()
 	local r = { id = NewID(), from = me, to = to, recipe = recipe,
-		t = now, st = "open", u = now, letter = false }
+		t = now, st = "open", u = now, letter = false, gold = Gold(gold) }
 	s[r.id] = r
 	Broadcast(r)
 	if ns.RefreshUI then ns.RefreshUI() end
@@ -443,7 +476,21 @@ function R.SendTabOpen()
 	return SendMailFrame and SendMailFrame:IsShown() and true or false
 end
 
+-- Copper as "12g 50s"
+function R.Money(copper)
+	if not copper then return "" end
+	if GetCoinTextureString then return GetCoinTextureString(copper) end
+	local g, s = math.floor(copper / 10000), math.floor(copper / 100) % 100
+	return s > 0 and ("%dg %ds"):format(g, s) or ("%dg"):format(g)
+end
+
+-- Cash on delivery for the letter being written (0 clears it)
+local function SetCOD(copper)
+	if SetSendMailCOD then pcall(SetSendMailCOD, copper or 0) end
+end
+
 local function FillMail(to, subject, body)
+	SetCOD(0)
 	if SendMailNameEditBox then SendMailNameEditBox:SetText(RawName(to)) end
 	if SendMailSubjectEditBox then SendMailSubjectEditBox:SetText(subject:sub(1, MAIL_SUBJECT_MAX)) end
 	if body and SendMailBodyEditBox then SendMailBodyEditBox:SetText(body) end
@@ -495,8 +542,9 @@ local pendingMail -- { id, kind = "letter" | "materials" | "result" } awaiting M
 -- The letter that tells the crafter what you'd like (the addon's notice reaches them too)
 function R.PrepareLetter(r)
 	local name = ns.RecipeName(r.recipe)
-	FillMail(r.to, L["Request: %s"]:format(name),
-		L["Hi! Could you craft %s for me?\nI asked through GuildCrafters Forever: you'll find it in the guild window (J), Requests tab.\nThanks!"]:format(name))
+	local body = L["Hi! Could you craft %s for me?\nI asked through GuildCrafters Forever: you'll find it in the guild window (J), Requests tab.\nThanks!"]:format(name)
+	if r.gold then body = body .. "\n" .. L["Reward: %s (send it cash on delivery)."]:format(R.Money(r.gold)) end
+	FillMail(r.to, L["Request: %s"]:format(name), body)
 	pendingMail = { id = r.id, kind = "letter" }
 end
 
@@ -518,8 +566,12 @@ end
 function R.PrepareResult(r)
 	local name = ns.RecipeName(r.recipe)
 	local item = ns.RecipeItem(r.recipe) or (ns.Schematic(r.recipe) or {}).item
-	FillMail(r.from, L["Your request: %s"]:format(name), L["Here's your %s. Enjoy!"]:format(name))
+	local body = L["Here's your %s. Enjoy!"]:format(name)
+	if r.gold then body = body .. "\n" .. L["Cash on delivery: the %s reward you offered."]:format(R.Money(r.gold)) end
+	FillMail(r.from, L["Your request: %s"]:format(name), body)
 	local ok = item and Attach(item, 1) > 0 or false
+	-- the reward, cash on delivery: whoever asked pays when they take the item
+	if ok and r.gold then SetCOD(r.gold) end
 	pendingMail = { id = r.id, kind = "result" }
 	return ok
 end
@@ -555,13 +607,15 @@ function R.MailActions()
 			out[#out + 1] = { text = L["Materials to %s: %s"]:format(r.to, name), run = function() return R.PrepareMaterials(r) end, request = r, mats = true }
 		end
 		if not r.board and r.to == me and r.st == "accepted" then
-			out[#out + 1] = { text = L["Send %s to %s"]:format(name, r.from), run = function() return R.PrepareResult(r) end, request = r, result = true }
+			out[#out + 1] = { text = L["Send %s to %s"]:format(name, r.from) .. (r.gold and (" (" .. L["cash on delivery %s"]:format(R.Money(r.gold)) .. ")") or ""),
+				run = function() return R.PrepareResult(r) end, request = r, result = true }
 		end
 		if r.board and r.st == "taken" and r.recipe > 0 then
 			if r.from == me and not r.mats then
 				out[#out + 1] = { text = L["Materials to %s: %s"]:format(r.to, name), run = function() return R.PrepareMaterials(r) end, request = r, mats = true }
 			elseif r.to == me then
-				out[#out + 1] = { text = L["Send %s to %s"]:format(name, r.from), run = function() return R.PrepareResult(r) end, request = r, result = true }
+				out[#out + 1] = { text = L["Send %s to %s"]:format(name, r.from) .. (r.gold and (" (" .. L["cash on delivery %s"]:format(R.Money(r.gold)) .. ")") or ""),
+				run = function() return R.PrepareResult(r) end, request = r, result = true }
 			end
 		end
 	end
@@ -597,8 +651,8 @@ C_Timer.After(20, function()
 		if now - at > 60 * 86400 then db.counted[id] = nil end
 	end
 	local n, c = R.PendingForMe(), R.ToCraft()
-	if n > 0 then ns.Print(L["You have %d recipe requests waiting for an answer. /gcraft requests"]:format(n)) end
+	if n > 0 then ns.Print(L["You have %d recipe requests waiting for an answer. (J > Requests)"]:format(n)) end
 	if c > 0 then ns.Print(L["You have %d accepted requests to craft."]:format(c)) end
 	local b = R.BoardOpen()
-	if b > 0 then ns.Print(L["%d open posts on the guild board. /gcraft requests"]:format(b)) end
+	if b > 0 then ns.Print(L["%d open posts on the guild board. (J > Requests)"]:format(b)) end
 end)
