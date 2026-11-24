@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.5.0
+## 0.5.0-beta1
 
 ### New: rewards
 - Add an optional reward in gold when you request something or post on the guild board. It shows on the board (biggest rewards first), in notices and in the request rows.
