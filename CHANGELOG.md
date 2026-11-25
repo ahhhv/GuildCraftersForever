@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.0
+
+Stable release of everything in the 0.5.0 betas below (rewards, guided tour, buttons instead of commands, "Take requests" filter and all the fixes).
+
 ## 0.5.0-beta4
 
 ### Fixes
