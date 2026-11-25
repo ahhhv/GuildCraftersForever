@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.0-beta4
+
+### Fixes
+- The requests ranking no longer throws a Lua error ("ReqUI.lua:516: attempt to call a nil value") when it shows its rows.
+
 ## 0.5.0-beta3
 
 ### Improvements

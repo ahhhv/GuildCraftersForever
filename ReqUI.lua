@@ -494,6 +494,8 @@ local function Button(btn, text, fn)
 	btn:Show()
 end
 
+local InitRankRow -- defined below; forward-declared so InitRow sees the local
+
 local function InitRow(b, d)
 	b:SetScript("OnEnter", nil)
 	b:SetScript("OnLeave", GameTooltip_Hide)
@@ -585,7 +587,7 @@ end
 
 local MEDAL = { "|cffffd100", "|cffc0c0c0", "|cffcd7f32" }
 
-local function InitRankRow(b, d)
+function InitRankRow(b, d)
 	local e = d.rank
 	local color = MEDAL[d.pos] or "|cffffffff"
 	b.left:SetText(("%s%d.|r  %s%s"):format(color, d.pos, e.main, e.online and " |cff40ff40•|r" or ""))
